@@ -459,44 +459,135 @@ Then, we calculate distance to the nearest landfill that was identified by subse
 # distance is returned in meters because these are the units used in the crs
 dist <- st_distance(erie_centroids, erie_landfills[landfill_near,], by_element = TRUE)
 
-dist_df <- data.frame(landfill_near = dist)
+# as.numeric converts the distance values to numeric format
+dist_df <- data.frame(landfill_near = as.numeric(dist))
+```
 
-# combine with centroid object
-library(units)
-#install.packages("units)
-# drop_units removes the unit ('m') from the distance value in each cell
-tract_fill_dist <- cbind(erie_centroids, drop_units(dist_df))
+Wonderful! The distances between each centroid and the nearest landfill have been calculated. However, if we wanted to make a thematic map of the tract polygons based on the distances we just calculated, we wouldn't be able to. The `erie_tracts` object does not have those distance values. Thus, in order to create a thematic map of the distances by census tract, we need to combine our data.
+
+```{r}
+# combine with erie_tracts
+tract_fill_dist <- cbind(erie_tracts, dist_df)
 
 # printing the combined data subset to only the tract and landfill_near variables
 print(tract_fill_dist[, c("TRACT","landfill_near")])
+
+# visualize census tracts with high and low distances from their centroid to a landfill 
+ggplot() +
+  geom_sf(data = tract_fill_dist, aes(fill = landfill_near))
 ```
-
-The distances have been calculated
-
-```{r}
-
-st_crs(erie_centroids)
-
-st_crs(landfill_near)
-
-landfill_near_crs <- landfill_near
-
-landfill_near_crs <- st_crs(landfill_near)
-
-st_crs(landfill_near_crs)
-```
-
-Create centroids for each tract
-
-Calculate the distance from centroids to nearest landfill
-
-Plot lanc tracts with color gradient for distance
 
 # 6. Creating a map in R
 
+When it comes to making maps in R, there are two main types: static and interactive. Static maps are the figures we have already been making in this course, whereas interactive maps are what you might find on dashboards or on the internet. Interactive maps allow you to do things like click on, or hover over, areas to explore additional information for that specific place. But first, let's go through the features of static maps.
+
 ## 6.1 Static map
 
--   So much information on [ggplot](https://ggplot2.tidyverse.org/). cant't cover here
+Like we have been already, we will work in [ggplot](https://ggplot2.tidyverse.org/). There are other packages used for mapping like **tmap**, **mapview**, **raster**, and **base R**, but ggplot is the most widely used visualization tool in R and easy to work with. We will continue with ggplot. There is so much that you could cover with ggplot. We will only go over the necessary information for this course. [Here](https://ggplot2-book.org/) is a comprehensive resource if you want to learn more about ggplot.
+
+**Basics:** ggplot has a simple grammar, which builds from the following structure/order of elements:
+
+1.  Data.
+
+2.  Geometry. These are the shapes of the visual (e.g., lines, bars) and are specified from `geom_*()` functions (e.g., `geom_point()`).
+
+3.  Aesthetics. The aesthetics of the geometry are things like the color, size, and shape, used to visualize information through the plot. These are referenced within `geom_*() functions` in the `aes()`.
+
+4.  Formatting. The remaining modifiable elements of a figure, including things like themes (e.g., font, ticks, plot size), titles, labels, and legends.
+
+When we "add" elements to our plot, we use a "+" to piece them together. You've probably noticed this in prior plots. NOTE: This is different from piping functions together using `%>%` or `|>` in open code. These pipes will not work to stitch together ggplot elements.
+
+Here is an example using all four elements:
+
+```{r}
+
+# data
+ggplot(nc_sids) + 
+  # geometry and aesthetics
+  geom_sf(aes(color = SID79, fill = SID79)) +
+  # optional elements: title
+  labs(title = "sample map") +
+  # optional elements: theme
+  theme(
+    # set all text to Arial font
+    text = element_text(family = "Arial"),
+    # set the background of the map to white
+    panel.background = element_rect(fill = "white"),
+    # remove all axis text (i.e., lat/long)
+    axis.text = element_blank(),
+    # remove all axis ticks
+    axis.ticks = element_blank()
+  )
+
+```
+
+### 6.1.1 Data
+
+We must use a tibble, data frame, or sf object with ggplot. If you are using a single data source, the name of the data should be reference in the `ggplot()`. Otherwise, each source should be specified within their respective `geom_*()`. For example:
+
+```         
+ggplot(nc_sids) +
+  geom_sf()
+  
+ggplot() +
+  geom_sf(data = pa_counties) +
+  geom_sf(data = pa_landfills)
+```
+
+### 6.1.2 Geometry
+
+`geom_sf()` is the "geometry" for maps in ggplot and works for points, polygons, and lines.
+
+### 6.1.3 Aesthetics
+
+[Aesthetics](https://ggplot2.tidyverse.org/reference/aes.html) map to the defined variables, creating the visual properties. Depending on the geometry, different aesthetics are available. For `geom_sf()`, we must commonly work with:
+
+-   **color:** lines, points, polygons (borders only)
+
+-   **fill:** polygons (inside of polygon)
+
+-   **shape:** points
+
+-   **size:** lines, points
+
+**Color:** This applies to both "color" and "fill" aesthetics. Assigning and changing color is the most challenging and versatile aspect of the aesthetics. Single colors can be specified by name or more specifically through hex codes.
+
+```{r}
+# 000000 and FFFFFF are the hexcodes for black and white, respectively.
+ggplot() +
+  geom_sf(data = pa_counties, color = "#000000", fill = "#FFFFFF") +
+  geom_sf(data = pa_landfills, color = "red")
+```
+
+When it comes to color scales, there are a myriad of options.
+
+Palletes
+
+Manual
+
+The default to set color scales is scale\_\*\_continuous()
+
+Continuous scale: scale_color_continuous
+
+viridis
+
+RColorBrewer
+
+-   continuous: scale\_\*\_distiller()
+
+-   discrete: scale\_\*\_brewer()
+
+Alternatively, you can manually set the scale with scale_manual...
+
+set na values with na.value = NA or na.value = "red"
+
+Also breaks...
+
+### 6.1.4 Formatting
+
+CRS
+
+-   breaks
 
 -   ggspatial
 
@@ -921,7 +1012,7 @@ Cressie, N (1991), *Statistics for spatial data*. New York: Wiley, pp. 386\--389
 
 <https://arc2r.github.io/book/Static_Maps.html>
 
-## 
+<https://ggplot2-book.org/>
 
 # 
 
