@@ -13,10 +13,9 @@ course: "EPBI 5003"
 5.  Spatial data processing
 6.  Creating a map in R
 7.  Point pattern analysis
-8.  Spatial autocorrelation
-9.  Creating a spatial weights matrix
+8.  Creating a spatial weights matrix
+9.  Spatial autocorrelation
 10. Spatial Regression
-11. Disease mapping
 
 # **1.** R Packages for spatial data management, analysis, and visualization
 
@@ -75,19 +74,19 @@ library(tidyverse)
 
 Key packages in the Tidyverse include:
 
-1.  **`dplyr`:** Offers a collection of functions for data manipulation, such as filtering, arranging, selecting, mutating, and summarizing data.
+1.  [**`dplyr`**](https://dplyr.tidyverse.org/)**:** Offers a collection of functions for data manipulation, such as filtering, arranging, selecting, mutating, and summarizing data.
 
-2.  **`ggplot2`:** Facilitates the creation of sophisticated and customizable data visualizations using the grammar of graphics.
+2.  [**`ggplot2`**](https://ggplot2.tidyverse.org/)**:** Facilitates the creation of sophisticated and customizable data visualizations using the grammar of graphics.
 
-3.  **`tidyr`:** Primarily used for data tidying tasks, especially for reshaping data and handling missing values.
+3.  [**`tidyr`**](https://tidyr.tidyverse.org/)**:** Primarily used for data tidying tasks, especially for reshaping data and handling missing values.
 
-4.  **`readr`:** A set of functions for reading various types of data files into R.
+4.  [**`readr`**](https://readr.tidyverse.org/)**:** A set of functions for reading various types of data files into R.
 
-5.  **`readxl`:** Provides functions to read data from Excel files into R.
+5.  [**`readxl`**](https://readxl.tidyverse.org/)**:** Provides functions to read data from Excel files into R.
 
-6.  **`stringr`:** Offers a set of functions designed for efficient and convenient string manipulation in R, such as pattern matching, substring extraction, and string modification.
+6.  [**`stringr`**](https://stringr.tidyverse.org/)**:** Offers a set of functions designed for efficient and convenient string manipulation in R, such as pattern matching, substring extraction, and string modification.
 
-7.  **`purrr`:** Provides tools for working with functions and vectors iteratively, enabling smoother functional programming workflows.
+7.  [**`purrr`**](https://purrr.tidyverse.org/)**:** Provides tools for working with functions and vectors iteratively, enabling smoother functional programming workflows.
 
 We will use the **tidyverse** to work with and manipulate data for our spatial analysis tasks.
 
@@ -243,7 +242,7 @@ malaria <- read_csv("https://raw.githubusercontent.com/Rsnead91/EPBI_5003/main/m
 
 5.  **Webscraping:** There are numerous R packages designed for retrieving data from specific sources. For example, `rvest` and `xml2` are used for web scraping HTML/XML content, `ROAuth` for accessing Twitter APIs, and `Quandl` for fetching financial and economic datasets.
 
-# 5. Spatial data processing
+# 5. Spatial data processing and basic analysis
 
 ## 5.1 Review coordinate systems
 
@@ -282,13 +281,17 @@ ggplot(nc_sids_5070) +
 
 From the ggplot output, our two sf objects appear to have the correct CRS applied.
 
+## 5.2 Manipulating spatial data
+
+On every project you're going to have to modify your data in some way to get it in the format you need. For example, removing rows with missing data, subsetting your shapefiles to a specific study area, renaming columns, etc.. Fortunately, the **sf** package integrates with the **tidyverse** so all the data management functions available from those packages can be applied to sf objects.
+
 Take a look at the `nc_sids` data. This [data set](https://jakubnowosad.com/spData/reference/nc.sids.html) contains the number of births, non-white births, and sudden infant deaths at the county-level in North Carolina from 1974-1978 and 1979-1984.
 
 ```{r, echo=TRUE}
 print(nc_sids)
 ```
 
-Suppose we want to remove all counties that had 0 SIDs from 1979-1984. We could filter the data to only keep rows with a value for SID79 \> 0. The `filter()` function is from the **dplyr** package and part of the **tidyverse**.
+Suppose we want to remove all counties that had 0 SIDs from 1979-1984. We could filter the data to only keep rows with a value for SID79 \> 0. The `filter()` function is from the **dplyr** package of the **tidyverse**.
 
 ```{r, echo=TRUE}
 # how many counties have 0 SIDS from 1979-1984
@@ -330,9 +333,16 @@ ggplot(nc_sids_no0) +
   geom_sf(aes(color = SID79, fill = SID79))
 ```
 
-Use [tigris](https://cran.r-project.org/web/packages/tigris/tigris.pdf) to pull pa counties. Import PA landfill locations? St_intersection to count?
+## 5.3 Basic spatial data analysis
+
+Let's perform some common basic spatial data processing and analysis. PFAS has historically been dumped in landfills around Pennsylvania (PA). This discharge can effect the soil and nearby drinking water, and have an adverse effect on public health.
+
+To calculate how many landfills are in each county in PA, we could perform an **intersect** between landfill point data and PA county polygons.
+
+The [tigris](https://cran.r-project.org/web/packages/tigris/tigris.pdf) package allows us to easily import shapefiles for common geographic boundaries in the US. We will use this package to access PA county data. Additionally, we will import a shapefile of landfill locations created for this class from data hosted on <https://www.pasda.psu.edu/>.
 
 ```{r}
+#install.packages("tigris")
 library(tigris)
 
 # creating a shapefile of PA county cartographic boundaries ('cb = TRUE')
@@ -357,21 +367,124 @@ pa_landfills <- st_read(t2)
 
 ```
 
-Overlay the landfills on top of the PA counties
+Once the data has been imported, we can create a simple map to visualize the polygon and point data to ensure everything looks right. To add multiple spatial layers to a `ggplot()`, we just include a `geom_sf()` for each layer. However, because we are using multiple layers, the data needs to specified in `geom_sf()`.
 
 ```{r}
-# to add multiple spatial layers, we just add a new geom_sf()
-# note: because we are using multiple data sets, specify the data in geom_sf()
+# plot of PA counties and landfill locations in the state
 ggplot() +
-  geom_sf(data=pa_counties) +
-  geom_sf(data=pa_landfills)
+  geom_sf(data = pa_counties) +
+  geom_sf(data = pa_landfills)
 ```
 
-Count the number of points in each county
+To count the number of points in each county, we can use st_intersects(). However, this function provides a "list" for each county of the point IDs that intersect it. We just need to pull out the "length" or number of IDs that intersected with each county. See below.
 
-Only keep point contained within lancaster county
+```{r}
+# original intersect list output
+landfill_count <- st_intersects(pa_counties, pa_landfills)
 
-read in tracts for lancaster county
+# take a look around the list to get familiar with this data type, if you want
+#view(landfill_count)
+
+# instead, we'll pull out the lengths of each list item and then add it as a variable to a new data set with county names
+# creating a new sf object with only the county name
+county_names <- dplyr::select(pa_counties, NAME)
+
+# creating a data frame that is a single column with the counts of landfills for each county
+landfill_count_df <- data.frame(count = lengths(st_intersects(pa_counties, pa_landfills)))
+
+# since I know the order of the county names and landfill counts are the same, I can simply combine these two objects together using cbind()
+county_landfill_counts <- cbind(county_names, landfill_count_df)
+
+print(county_landfill_counts)
+```
+
+If we wanted to subset our landfill point data to a specific area (e.g., Erie County) and we don't have column values to filter on (e.g., county name), we could use `st_intersection()`, different from `st_intersects()`, which creates a new sf object based on overlapping features.
+
+```{r}
+# first reduce pa_counties to only erie county
+erie <- filter(pa_counties, NAME == "Erie")
+
+# run st_intersection() with the area we want out points to subset to first and the features we want to subset second
+erie_landfills <- st_intersection(erie, pa_landfills)
+
+# check if we were successful
+ggplot() +
+  geom_sf(data = erie) +
+  geom_sf(data = erie_landfills)
+```
+
+Let's import the census tracts for Erie County, PA and calculate the distance from each tract centroid to the nearest landfill. We can use the **tigris** package to download the census tracts. From the **sf** package, we can create centroids with `st_centroid()` and use `st_nearest_feature()` and `st_distance()` to find the distance to the closest landfill for each centroid.
+
+First, we'll pull the census tracts for Erie County.
+
+```{r}
+# get pa census tracts for erie county (fips = 049) using 2010 decennial census boundaries
+erie_tracts <- tracts(state = "PA", county = 049, cb = TRUE, year = 2010)
+
+# double check output
+ggplot() +
+  geom_sf(data = erie_tracts) +
+  geom_sf(data = erie_landfills)
+```
+
+Next, we'll create the centroids for each census tract.
+
+```{r}
+# calculate census tract centroids
+erie_centroids <- st_centroid(erie_tracts)
+
+# double check output
+ggplot() +
+  geom_sf(data = erie_tracts) +
+  geom_sf(data = erie_landfills, color = "black") +
+  geom_sf(data = erie_centroids, color = "red")
+```
+
+Easy as pie. Once we have the centroids, we can calculate distances for each census tract centroid to the nearest landfill. This step is not quite as straightforward. First, for each centroid, we need to identify the landfill that is the closest.
+
+```{r}
+# identify the closest landfill to each centroid
+# st_nearest_feature returns the row number of the nearest landfill for each tract centroid
+landfill_near <- st_nearest_feature(erie_centroids, erie_landfills)
+
+# the output is just a vector of row numbers
+# note there are 71 values and 71 census tracts in erie, so we were successful in calculating the nearest landfill for each tract
+print(landfill_near)
+```
+
+Then, we calculate distance to the nearest landfill that was identified by subsetting the landfill data.
+
+```{r}
+# calculate the distance
+# distance is returned in meters because these are the units used in the crs
+dist <- st_distance(erie_centroids, erie_landfills[landfill_near,], by_element = TRUE)
+
+dist_df <- data.frame(landfill_near = dist)
+
+# combine with centroid object
+library(units)
+#install.packages("units)
+# drop_units removes the unit ('m') from the distance value in each cell
+tract_fill_dist <- cbind(erie_centroids, drop_units(dist_df))
+
+# printing the combined data subset to only the tract and landfill_near variables
+print(tract_fill_dist[, c("TRACT","landfill_near")])
+```
+
+The distances have been calculated
+
+```{r}
+
+st_crs(erie_centroids)
+
+st_crs(landfill_near)
+
+landfill_near_crs <- landfill_near
+
+landfill_near_crs <- st_crs(landfill_near)
+
+st_crs(landfill_near_crs)
+```
 
 Create centroids for each tract
 
@@ -383,13 +496,57 @@ Plot lanc tracts with color gradient for distance
 
 ## 6.1 Static map
 
--   So much information on ggplot. cant't cover here
+-   So much information on [ggplot](https://ggplot2.tidyverse.org/). cant't cover here
 
 -   ggspatial
 
     -   arrow bar
 
+-   <https://www.paulamoraga.com/book-geospatial/sec-spatialdataandCRS.html>
+
+-   <https://arc2r.github.io/book/Static_Maps.html>
+
 ## 6.2 Interactive map
+
+NC data?
+
+scotlip data?
+
+```         
+# Define your basemap
+basemap <- leaflet() %>% addTiles()
+basemap
+
+basemap %>% addPolygons(data=ETH_Adm_1)
+
+basemap %>% addPolygons(data=ETH_Adm_1, color = "red", 
+                        weight = 1, fillOpacity = 0.2, 
+                        popup = ETH_Adm_1$NAME_1) %>%
+  
+            addCircleMarkers(data=ETH_malaria_data_SPDF,
+                             color="green", radius = 2) %>%
+      
+      addLegend(pal = colorPal, 
+                title = "Prevalence",
+                values = ETH_malaria_data_SPDF$pf_pr)
+                
+
+
+
+library(leaflet)
+
+pal <- colorNumeric("YlOrRd", domain = map$SID74)
+
+leaflet(map) %>%
+  addTiles() %>%
+  addPolygons(
+    color = "white", fillColor = ~ pal(SID74),
+    fillOpacity = 1
+  ) %>%
+  addLegend(pal = pal, values = ~SID74, opacity = 1)
+  
+  
+```
 
 # 7. Point pattern analysis
 
@@ -401,13 +558,200 @@ spatstat package?
 
     -   clustered
 
+    -   kappa \<- 30 / [st_area](https://r-spatial.github.io/sf/reference/geos_measures.html)(w2) \# intensity
+        th \<- [st_sample](https://r-spatial.github.io/sf/reference/st_sample.html)(w2, kappa = kappa, mu = 3, scale = 0.05,
+        type = "Thomas")
+        [nrow](https://rdrr.io/r/base/nrow.html)(th)
+
 -   <https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
 
 Kernel density estimation
 
+-   simulated data
+
+-   <https://arc2r.github.io/book/Density.html#kernel-density>
+
+-   <https://r-spatial.org/book/11-PointPattern.html>
+
+    -   den1 \<- [density](https://rdrr.io/r/stats/density.html)(pp1, sigma = bw.diggle)
+
 G or K-function
 
-------------------------------------------------------------------------
+-   malaria data
+
+-   K: <https://www.paulamoraga.com/book-spatial/the-k-function.html>
+
+```         
+library(spatstat)
+X <- rpoispp(lambda = 100)
+plot(X)
+axis(1)
+axis(2)
+
+K <- Kest(X)
+plot(K)
+
+E <- envelope(X, Kest, nsim = 99)
+plot(E)
+```
+
+# 8. Creating a spatial weights matrix
+
+<https://www.paulamoraga.com/book-spatial/spatial-neighborhood-matrices.html>
+
+## 8.1 Contiguity
+
+-   Types of objects: nb, list, mat..
+
+```         
+library(spData)
+library(sf)
+library(spdep)
+library(ggplot2)
+
+map <- st_read(system.file("shapes/columbus.shp",
+               package = "spData"), quiet = TRUE)
+
+nb <- spdep::poly2nb(map, queen = TRUE)
+head(nb)
+
+plot(st_geometry(map), border = "lightgray")
+plot.nb(nb, st_geometry(map), add = TRUE)
+
+id <- 20 # area id
+map$neighbors <- "other"
+map$neighbors[id] <- "area"
+map$neighbors[nb[[id]]] <- "neighbors"
+ggplot(map) + geom_sf(aes(fill = neighbors)) + theme_bw() +
+  scale_fill_manual(values = c("gray30", "gray", "white"))
+```
+
+## 8.2 Distance-based
+
+-   knn - num
+
+```         
+# Neighbors based on 3 nearest neighbors
+coo <- st_centroid(map)
+nb <- knn2nb(knearneigh(coo, k = 3)) # k number nearest neighbors
+plot(st_geometry(map), border = "lightgray")
+plot.nb(nb, st_geometry(map), add = TRUE)
+```
+
+-   knn - distance
+
+```         
+# Neighbors based on distance
+nb <- dnearneigh(x = st_centroid(map), d1 = 0, d2 = 0.4)
+plot(st_geometry(map), border = "lightgray")
+plot.nb(nb, st_geometry(map), add = TRUE)
+
+coo <- st_centroid(map)
+# k is the number nearest neighbors
+nb1 <- knn2nb(knearneigh(coo, k = 1))
+
+dist1 <- nbdists(nb1, coo)
+summary(unlist(dist1))
+```
+
+IDW?
+
+8.3 Neighbor weights matrix
+
+```         
+
+# binary
+nb <- poly2nb(map, queen = TRUE)
+nbw <- spdep::nb2listw(nb, style = "W")
+nbw$weights[1:3]
+
+m1 <- listw2mat(nbw)
+lattice::levelplot(t(m1),
+scales = list(y = list(at = c(10, 20, 30, 40),
+                       labels = c(10 20, 30, 40))))
+
+# idw
+coo <- st_centroid(map)
+nb <- poly2nb(map, queen = TRUE)
+dists <- nbdists(nb, coo)
+ids <- lapply(dists, function(x){1/x})
+
+nbw <- nb2listw(nb, glist = ids, style = "B")
+nbw$weights[1:3]
+
+m2 <- listw2mat(nbw)
+lattice::levelplot(t(m2),
+scales = list(y = list(at = c(10, 20, 30, 40),
+                       labels = c(10, 20, 30, 40))))
+```
+
+# 9. Spatial autocorrelation
+
+Moran's I
+
+-   Global
+
+```         
+# Neighbors
+library(spdep)
+nb <- poly2nb(map, queen = TRUE) # queen shares point or border
+nbw <- nb2listw(nb, style = "W")
+
+# Global Moran's I
+gmoran <- moran.test(map$vble, nbw,
+                     alternative = "greater")
+gmoran
+
+gmoran[["estimate"]][["Moran I statistic"]] # Moran's I
+gmoran[["statistic"]] # z-score
+gmoran[["p.value"]] # p-value
+```
+
+-   Local"
+
+    -   `Ii`: Local Moran\'s I� statistic for each area,
+
+    -   `E.Ii`: Expectation Local Moran\'s I� statistic,
+
+    -   `Var.Ii`: Variance Local Moran\'s I� statistic,
+
+    -   `Z.Ii`: z-score,
+
+    -   `Pr(z > E(Ii))`, `Pr(z < E(Ii))` or `Pr(z != E(Ii))`: p-value for an alternative hypothesis `greater`, `less` or `two.sided`, respectively."
+
+    ```         
+    lmoran <- localmoran(map$vble, nbw, alternative = "greater")
+    head(lmoran)
+
+    tm_shape(map) + tm_fill(col = "quadrant", title = "",
+    breaks = c(1, 2, 3, 4, 5, 6),
+    palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
+    labels = c("High-High", "Low-Low", "High-Low",
+               "Low-High", "Non-significant")) +
+    tm_legend(text.size = 1)  + tm_borders(alpha = 0.5) +
+    tm_layout(frame = FALSE,  title = "Clusters")  +
+    tm_layout(legend.outside = TRUE)
+    ```
+
+-   <https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
+
+# 10. Spatial Regression
+
+INLA
+
+What data? Scottish lip cancer?
+
+```         
+install.packages("INLA",
+repos = "https://inla.r-inla-download.org/R/stable", dep = TRUE)
+library(INLA)
+```
+
+-   <https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
+
+-   <https://r-spatial.org/book/16-SpatialRegression.html>
+
+# 
 
 # End
 
@@ -556,5 +900,29 @@ Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Ha
 Edzer Pebesma, 2018. Simple Features for R: Standardized Support for Spatial Vector Data. The R Journal [10:1, 439-446.](https://journal.r-project.org/archive/2018/RJ-2018-009/index.html)
 
 Cressie, N (1991), *Statistics for spatial data*. New York: Wiley, pp. 386\--389; Cressie, N, Chan NH (1989) Spatial modelling of regional variables. *Journal of the American Statistical Association*, 84, 393\--401; Cressie, N, Read, TRC (1985) Do sudden infant deaths come in clusters? *Statistics and Decisions* Supplement Issue 2, 333\--349; <http://sal.agecon.uiuc.edu/datasets/sids.zip.>
+
+<https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
+
+<https://r-spatial.org/book/16-SpatialRegression.html>
+
+<https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
+
+<https://www.paulamoraga.com/book-spatial/spatial-neighborhood-matrices.html>
+
+<https://www.paulamoraga.com/book-spatial/the-k-function.html>
+
+<https://arc2r.github.io/book/Density.html#kernel-density>
+
+<https://r-spatial.org/book/11-PointPattern.html>
+
+<https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
+
+<https://www.paulamoraga.com/book-geospatial/sec-spatialdataandCRS.html>
+
+<https://arc2r.github.io/book/Static_Maps.html>
+
+## 
+
+# 
 
 # 
