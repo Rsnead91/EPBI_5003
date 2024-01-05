@@ -1,0 +1,560 @@
+---
+title: "M11 - Spatial data processing, analysis, and mapping in R"
+instructor: ""
+course: "EPBI 5003"
+---
+
+# Module outline
+
+1.  R Packages for spatial data management, analysis, and visualization
+2.  The `sf` package
+3.  Importing and downloading data
+4.  Writing data
+5.  Spatial data processing
+6.  Creating a map in R
+7.  Point pattern analysis
+8.  Spatial autocorrelation
+9.  Creating a spatial weights matrix
+10. Spatial Regression
+11. Disease mapping
+
+# **1.** R Packages for spatial data management, analysis, and visualization
+
+1.  **sf**: Offers simple features for spatial vector data, providing a modern and unified way to work with spatial data. Excellent for typical data processing. **(processing/management)**
+
+2.  **leaflet**: Allows the creation of interactive maps through an interface with the Leaflet JavaScript library. **(visualization)**
+
+3.  **tidycensus**: Enables easy access to US Census Bureau data, allowing users to download and work with US census data. **(processing/management)**
+
+4.  **tigris**: Works in conjunction with the US Census Bureau's TIGER/Line data, providing functions to work with spatial data within R. Easy to use functions for downloading geographic boundaries. **(processing/management)**
+
+5.  **sp**: Provides classes and methods for spatial data in R, offering infrastructure for handling spatial data objects. **THIS PROGRAM WAS REPLACED BY SF.** **(processing/management)**
+
+6.  **raster**: Focuses on handling raster data (gridded data), offering functionalities for reading, writing, and manipulating such data. **(processing/management)**
+
+7.  **maptools**: Offers tools for reading and handling spatial data in various formats and performing various manipulations. **(visualization)**
+
+8.  **rgdal**: Serves as an interface to the Geospatial Data Abstraction Library (GDAL) for reading and writing raster and vector data formats. **(processing/management)**
+
+9.  **rgeos**: Provides bindings to the GEOS library for geometric operations on geometries, useful for spatial data handling. **(processing/management)**
+
+10. **osmdata**: Facilitates access to OpenStreetMap data, allowing users to download and work with OpenStreetMap data. **(processing/management)**
+
+11. **ggmap**: Integrates mapping functionalities from Google Maps into ggplot2, allowing the creation of maps using Google Maps. **(visualization)**
+
+12. **spData**: Offers a collection of spatial datasets to facilitate learning and teaching spatial data analysis. **(processing/management)**
+
+13. **tidygeocoder**: Provides access to geocoding services, allowing the conversion of addresses into geographic coordinates. **(analysis)**
+
+14. **tmap**: Enables the creation of thematic maps using layers, providing an interface to create static or interactive maps. **(visualization)**
+
+15. **rastervis**: Offers visualization methods for raster data, facilitating the plotting and exploration of raster datasets. **(visualization)**
+
+16. **gstat**: Focuses on geostatistical modeling, offering functionalities for spatial prediction and analysis. **(analysis)**
+
+17. **spatstat**: Provides tools for spatial point pattern analysis, enabling statistical analysis of point pattern datasets. **(analysis)**
+
+18. **geosphere**: Offers functions for calculating distances and areas in geographic coordinates, focusing on earth sciences. **(analysis)**
+
+19. **ggspatial**: Extends ggplot2 with spatial layers and annotations, including north arrows and scale bars. **(visualization)**
+
+20. **stars**: Provides a data structure and functions for raster data analysis, supporting large datasets in a multi-dimensional array format. **(processing/management/analysis)**
+
+21. **terra**: Focuses on raster data handling and analysis, offering functionality for big data in earth observation analysis and spatial statistics. **(processing/management/analysis)**
+
+# 2. The [Tidyverse](https://www.tidyverse.org/)
+
+The **tidyverse** is a collection of R packages specifically created to streamline and enhances\\ the data science workflow by offering a consistent and cohesive set of tools. It's built around the concept of tidy data, focusing on data manipulation, visualization, and modeling. Just by loading the **tidyverse** library, you also load all of the packages within the **tidyverse**.
+
+NOTE: After installing a package, you can comment out that line of code.
+
+```{r load tidyverse, echo=FALSE}
+#install.packages("tidyverse")
+library(tidyverse)
+```
+
+Key packages in the Tidyverse include:
+
+1.  **`dplyr`:** Offers a collection of functions for data manipulation, such as filtering, arranging, selecting, mutating, and summarizing data.
+
+2.  **`ggplot2`:** Facilitates the creation of sophisticated and customizable data visualizations using the grammar of graphics.
+
+3.  **`tidyr`:** Primarily used for data tidying tasks, especially for reshaping data and handling missing values.
+
+4.  **`readr`:** A set of functions for reading various types of data files into R.
+
+5.  **`readxl`:** Provides functions to read data from Excel files into R.
+
+6.  **`stringr`:** Offers a set of functions designed for efficient and convenient string manipulation in R, such as pattern matching, substring extraction, and string modification.
+
+7.  **`purrr`:** Provides tools for working with functions and vectors iteratively, enabling smoother functional programming workflows.
+
+We will use the **tidyverse** to work with and manipulate data for our spatial analysis tasks.
+
+# 3. The [sf](https://r-spatial.github.io/sf/) package
+
+Most spatial analyses in public health work with vector data (i.e., polygons, points, lines) and the sf package can handle all of your spatial data processing needs.
+
+## 3.1 `sf` objects
+
+Rather than data frames, the **sf** package works with **sf** objects. These objects expand on data frames to incorporate spatial features, including *geometry*. An **sf** object can be one of three classes: sf (simple feature), sfc (simple feature geometry list-column), or sfg (simple feature geometry). Notably, **sf** objects are compatible with tidyverse functions.
+
+The sf object presents as a normal data frame, but now contains a geometry column. Note, this is not an additional variable, but geometry data attached to the data frame. The geometry column of an **sf** object contains the following metadata: CRS, bounding box for the object, precision, and \# of empty geometries. See below for an example.
+
+The following code loads a data set included in the **sf** package. Using the `head()` function, we see the data is of sf or "Simple Feature" class, the geometry is a MULTIPOLYGON meaning polygon rather than point data, has the bounding box details, and the CRS for the object (NAD27).
+
+```{r Read NC data, echo=TRUE, paged.print=FALSE}
+# load libraries
+#install.packages("sf")
+library(sf)
+
+# import (read) north carolina sids data from the sf package
+nc_sids <- st_read(system.file("shape/nc.shp", package = "sf"))
+
+head(nc_sids)
+```
+
+## 3.2 functions
+
+**Importing and Exporting Spatial Data**: `sf` can import and export spatial data in various formats like ESRI Shapefiles and GeoJSON using the `st_read()` and `st_write()` functions. Additionally, `st_as_sf()` converts non-sf objects, such as data frames, data tables, and tibbles, to sf objects.
+
+**Coordinate Reference Systems (CRS)**: The `st_crs()` and `st_transform()` are used to check, set, and project CRS.
+
+**Spatial Joins and Aggregations**: `sf` functions for spatial joins, `st_join()`, and spatial aggregation, `st_aggregate()`, to combine data based on spatial relationships or summarize data within defined regions.
+
+**Manipulation of Spatial Data**: `sf` can subsetting, merging, transforming, and summarizing geometries. Common functions include `st_union()`, `st_difference()`, `st_buffer()`, `st_transform()`, etc. `st_coordinates()` pulls the coordinates of geometric objects.
+
+**Overlay**: `sf` uses `st_intersects()`, `st_contains()`, `st_within()`, etc., to determine and output spatially related geometries.
+
+**Visualization**: `sf` integrates with `ggplot2` through the `geom_sf()` layer.
+
+**Geometric Operations**: `sf` performs geometric operations on spatial objects, including `st_area()`, `st_length()`, and `st_centroid()`.
+
+**Attributes and Data Manipulation**: `sf` enables the management of both spatial and non-spatial data associated with spatial objects. Functions like `st_drop_geometry()`, `mutate()` from `dplyr`, and `select()` help manage attribute data.
+
+Here is a [cheat sheet](https://github.com/rstudio/cheatsheets/blob/main/sf.pdf) to quickly refer back to for the name of sf functions and their brief descriptions.
+
+![](sf_Page_1.png)
+
+![](sf_Page_2.png)
+
+# 4. Importing and exporting data
+
+Like anything in R, there are many ways to perform the same task. When it comes to importing data, there are three general categories based on the type of data you are importing and where it is coming from:
+
+## 4.1 Non-spatial data local on your computer
+
+Fairly often, you will be given a CSV or excel file with spatial data (e.g., coordinates of cancer cases) or attributes (e.g., county-level rates of infant mortality) that need to be merged with spatial data. To import these "flat-files", we can use functions from the `readr` and `readxl` packages of the `tidyverse`:
+
+-   `read_csv()`: comma delimited files
+
+-   `read_tsv()`: tab delimited files
+
+-   `read_delim()`: files with any delimiter
+
+-   `read_excel()`: .xls or .xlsx files
+
+To export and save data from R to your local computer as these flat-file formats, you use same functions but instead of the "read\_" prefix, use "write\_".
+
+Example:
+
+```{r, echo=TRUE}
+# ignore the step
+# creating a csv on your local computer to practice importing
+nc_sids_nogeo <- nc_sids %>% st_drop_geometry()
+write_csv(nc_sids, "nc_sids_nogeo.csv")
+rm(nc_sids_nogeo)
+
+# importing a csv file
+nc_sids_nogeo <- read_csv("nc_sids_nogeo.csv")
+#?read_delim
+#?read_excel
+
+# exporting a csv file
+write_csv(nc_sids_nogeo, "export_csv.csv")
+#?write_csv
+```
+
+For R files, .Rdata or .rds, you can use the "base" functions `load()` and `readRDS()`, respectively. Conversely, to export an .Rdata or .rds file, you would use the save() and writeRDS().
+
+The primary difference between \`.Rdata\` and \`.rds\` files lies in how they store data in R.
+
+-   .Rdata: These files can contain multiple objects (data frames, lists, variables) saved within a single file. They retain the internal structure of the R workspace, preserving all objects present when saving. When loading .Rdata files, all objects stored within the file are restored into the R environment.
+
+-   .rds: These files are used to save a single R object. They store a single object in a serialized format, which means that only the object itself is saved without retaining any other workspace information. .rds files are more flexible and can be easily shared across different R versions or even with other programming languages. When loading .rds files, only the saved object is restored, allowing greater control over which specific objects to import into the R environment.
+
+```{r, echo=TRUE}
+# NOTE: .Rdata does not need to be assigned to an object, but .rds does.
+
+save(nc_sids_nogeo, file = "nc_sids_r.Rdata")
+#?save
+load("nc_sids_r.Rdata")
+#?load
+
+write_rds(nc_sids_nogeo, "nc_sids_r2.rds")
+#?write_rds
+nc_sids_rds <- read_rds("nc_sids_r2.rds")
+#?readRDS
+```
+
+## 4.2 Spatial data local on your computer
+
+To import spatial files (i.e., ESRI shapefiles, GeoJSONs, KMLs, etc.) of vector data, you can use `st_read()` of the **sf** package. Another option is the `readOGR()` function of the **rgdal** package. Alternatively, spatial files can be created and exported with `st_write()` and `writeOGR()`.
+
+```{r, echo=TRUE}
+# import (read) north carolina sids data from the sf package
+nc_sids <- st_read(system.file("shape/nc.shp", package = "sf"))
+#?st_read
+
+# NOTE: the code above uses system.file() because it is pulling data hosted by the sf package. If the the "nc.shp" file was on your computer in a subfolder called "shape" the code would be:
+#nc_sids <- st_read("shape/nc.shp")
+
+st_write(nc_sids, "nc_sids_shp.shp")
+#?st_write
+```
+
+If you're working with raster data, you would perform similar procedures with the `raster()` and `writeRaster()` functions of the **raster** package or the `rast()` and `writeRaster()`functions of the **terra** package. However, the **terra** package is becoming more popular.
+
+## 4.3 Importing data from external sources
+
+In R, there are various methods to import data from R packages, fetch data from online sources like APIs, or retrieve information through URLs:
+
+1.  **R Packages:** Many R packages come with built-in datasets that can be accessed directly. These datasets are often used for practice, testing, or as examples in documentation. You can load these datasets using functions like `data()`, `library()`, or directly calling the datasets by name.
+
+```{r, echo=TRUE}
+# check for data in loaded libraries
+data()
+
+# reference the name of the data set to load it
+data(mtcars)
+head(mtcars)
+```
+
+2.  **URLs:** R enables you to fetch data directly from URLs using functions like `download.file()` or higher-level functions like `read_delim()` to read data from URLs pointing to CSV files, text files, or other formats.
+
+```{r, echo=TRUE}
+# loading data directly from github
+malaria <- read_csv("https://raw.githubusercontent.com/Rsnead91/EPBI_5003/main/malaria.csv")
+```
+
+3.  **APIs:** APIs (Application Programming Interfaces) are used to retrieve data from web services or online databases. R provides packages like `httr`, `jsonlite`, and `httr` that facilitate interaction with APIs. You can use functions like `GET()`, `POST()`, and `fromJSON()` to send requests to APIs and parse the response data (usually in JSON or XML format) into R objects.
+
+4.  **Tidycensus for Census Data:** `tidycensus` is an R package specifically designed for accessing US Census Bureau data. It allows users to retrieve census data for various geographic levels (e.g., states, counties, tracts) and variables, providing a straightforward interface to access demographic, social, and economic data from the U.S. Census Bureau's API.
+
+5.  **Webscraping:** There are numerous R packages designed for retrieving data from specific sources. For example, `rvest` and `xml2` are used for web scraping HTML/XML content, `ROAuth` for accessing Twitter APIs, and `Quandl` for fetching financial and economic datasets.
+
+# 5. Spatial data processing
+
+## 5.1 Review coordinate systems
+
+Using the `nc_sids` sf object, let's check the coordinate system.
+
+```{r, echo=TRUE}
+# checking the assigned crs for nc_sids
+st_crs(nc_sids)
+```
+
+From the output, we can see the CRS is set to `NAD27`, which is referred to by the EPSG code `4267`. Additionally, the `st_crs()` function returns outputs CRS information like the datum and prime meridian. This [website](https://guides.library.duke.edu/r-geospatial/CRS) has a list of common CRS EPSG codes.
+
+Let's change the `nc_sids` CRS from NAD27 to USA Contiguous Albers Equal Area Conic, which has an EPSG code of `5070`.
+
+```{r, echo=TRUE}
+# changing the crs of the original nc_sids sf object
+nc_sids_5070 <- st_transform(nc_sids, crs = 5070)
+
+# check the new object is set to the new crs
+st_crs(nc_sids_5070)
+```
+
+CRS was successfully changed. `nc_sids_5070` now has a geographic coordinate system of `NAD83` and a projection of `CONUS Albers`. CONUS means Contiguous US.
+
+Now let's visually compare the original and transformed data using `ggplot()` with the `geom_sf()`. When only the data is referenced, and no aesthetics are assigned, ggplot returns the sf object's geometry in a longitude/latitude grid.
+
+```{r, echo=TRUE}
+# plot the nc_sids sf object
+ggplot(nc_sids) +
+  geom_sf()
+
+# plot the nc_sids_5070 sf object
+ggplot(nc_sids_5070) +
+  geom_sf()
+```
+
+From the ggplot output, our two sf objects appear to have the correct CRS applied.
+
+Take a look at the `nc_sids` data. This [data set](https://jakubnowosad.com/spData/reference/nc.sids.html) contains the number of births, non-white births, and sudden infant deaths at the county-level in North Carolina from 1974-1978 and 1979-1984.
+
+```{r, echo=TRUE}
+print(nc_sids)
+```
+
+Suppose we want to remove all counties that had 0 SIDs from 1979-1984. We could filter the data to only keep rows with a value for SID79 \> 0. The `filter()` function is from the **dplyr** package and part of the **tidyverse**.
+
+```{r, echo=TRUE}
+# how many counties have 0 SIDS from 1979-1984
+# table() outputs the frequencies of each value
+# to refer to a specific variable in a data set, we can use '$' followed by the variable name
+table(nc_sids$SID79)
+
+# how many rows (counties) are in NC
+length(nc_sids$SID79)
+```
+
+9 counties have 0 SIDS from 1979-1984. The `length()` function returns the number of rows in the data. Each row corresponds to a county in North Carolina. Therefore, after filtering our data, we would expect to 91 (100-9) remaining records.
+
+```{r, echo=TRUE}
+# remove counties that have 0 SIDS from 1979-1984
+nc_sids_no0 <- filter(nc_sids, SID79 > 0)
+
+# how many rows (counties) are there
+length(nc_sids_no0$SID79)
+```
+
+Our new data set has 91 rows as expected. Let's visualize the new data to see how removing these counties impacts our map. Additionally, I will tell ggplot to add a color gradient to the count of SIDS from 1979-1984.
+
+```{r, echo=TRUE}
+# review the the nc shapefile before and after removing rows for counties without SIDS
+ggplot(nc_sids) + 
+  geom_sf()
+
+ggplot(nc_sids_no0) + 
+  geom_sf()
+
+# adding a color gradient based on the values in SID79
+# without specifying a color scheme R uses a default
+# note: 'fill' assigns color within the polygon and 'color' assigns color to its borders
+ggplot(nc_sids) + 
+  geom_sf(aes(color = SID79, fill = SID79))
+
+ggplot(nc_sids_no0) + 
+  geom_sf(aes(color = SID79, fill = SID79))
+```
+
+Use [tigris](https://cran.r-project.org/web/packages/tigris/tigris.pdf) to pull pa counties. Import PA landfill locations? St_intersection to count?
+
+```{r}
+library(tigris)
+
+# creating a shapefile of PA county cartographic boundaries ('cb = TRUE')
+pa_counties <- counties(state = "PA", cb = TRUE)
+
+# importing a zipped folder of all four shapefile for all the residential and municipal landfills in PA
+# data comes from https://www.pasda.psu.edu/
+
+# to import and unzip a folder of multiple files, you follow the following steps
+# create two temporary files
+t1 <- tempfile()
+t2 <- tempfile()
+
+# use download.file() for zipped folders and assign to the first temporary file
+pa_landfills <- download.file("https://raw.githubusercontent.com/Rsnead91/EPBI_5003/main/pa_landfills.zip",t1)
+
+# unzip the first temporary file and export to the second temporary file which is used as a directory to host multiple files since we need four for a single shapefile
+unzip(zipfile = t1, exdir = t2)
+
+# read-in the entire temporary directory to create the new shapefile of PA landfills
+pa_landfills <- st_read(t2)
+
+```
+
+Overlay the landfills on top of the PA counties
+
+```{r}
+# to add multiple spatial layers, we just add a new geom_sf()
+# note: because we are using multiple data sets, specify the data in geom_sf()
+ggplot() +
+  geom_sf(data=pa_counties) +
+  geom_sf(data=pa_landfills)
+```
+
+Count the number of points in each county
+
+Only keep point contained within lancaster county
+
+read in tracts for lancaster county
+
+Create centroids for each tract
+
+Calculate the distance from centroids to nearest landfill
+
+Plot lanc tracts with color gradient for distance
+
+# 6. Creating a map in R
+
+## 6.1 Static map
+
+-   So much information on ggplot. cant't cover here
+
+-   ggspatial
+
+    -   arrow bar
+
+## 6.2 Interactive map
+
+# 7. Point pattern analysis
+
+spatstat package?
+
+-   st_sample
+
+    -   random
+
+    -   clustered
+
+-   <https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
+
+Kernel density estimation
+
+G or K-function
+
+------------------------------------------------------------------------
+
+# End
+
+```{r}
+library(CARBayesdata)
+data()
+
+data(lipdata)
+
+library(sf)
+library(spatstat.data)
+library(gstat)
+
+library(spatstat)
+
+scotlip <- st_read("https://geodacenter.github.io/data-and-lab/data/scotlip.zip")
+
+
+data(chicago)
+#https://search.r-project.org/CRAN/refmans/spatstat.data/html/chicago.html
+
+data(chicago)
+  if(require(spatstat.linnet)) {
+plot(chicago)
+#plot(as.linnet(chicago), main="Chicago Street Crimes",col="green")
+plot(as.ppp(chicago), add=TRUE, col="red", chars=c(16,2,22,17,24,15,6))
+  }
+
+library(maptools)
+
+chi_pp <- as.SpatialPointsDataFrame.ppp(as.ppp(chicago))
+
+chi_pp2 <- st_as_sf(as.ppp(chicago))
+
+chi_pp3 <- st_as_sf(chicago)
+
+class(chicago)
+
+ggplot(chi_pp3 %>% filter(label != "segment")) + 
+  geom_sf()
+
+view(as.ppp(chicago))
+
+st_coordinates(chi_pp)
+
+view((chicago[["data"]]))
+
+data(nbfires)
+
+#https://hughst.github.io/week-1/
+#https://malariaatlas.org/
+
+
+```
+
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+1.  
+
+2.  Importing and downloading data
+
+    1.  <https://mgimond.github.io/Spatial/reading-and-writing-spatial-data-in-r.html>
+
+    2.  <https://www.paulamoraga.com/book-spatial/the-sf-package-for-spatial-vector-data.html>
+
+        1.  CSV
+
+        2.  Shapefiles
+
+        3.  Census
+
+3.  Writing data
+
+    1.  CSV
+
+    2.  Shapefiles
+
+4.  Basic data processing
+
+    1.  Sf and Raster package features
+
+    2.  Create new shapefile
+
+        1.  Filter?
+
+    3.  Coordinate systems
+
+        1.  Setting, checking, comparing
+
+    4.  ...
+
+5.  Make a map
+
+    1.  tmap
+
+    2.  ggplot
+
+        1.  Inset?
+
+        2.  Arrow/Scale bar
+
+        3.  Theme
+
+        4.  Color scales
+
+    3.  Leaflet
+
+    4.  <https://mgimond.github.io/Spatial/mapping-rates-in-r.html>
+
+    5.  <https://mgimond.github.io/Spatial/mapping-data-in-r.html>
+
+6.  Descriptive statistics
+
+    1.  Aspatial
+
+    2.  Spatial
+
+        1.  Intersection to count overlapping points
+
+7.  Point pattern analysis
+
+    1.  <https://mgimond.github.io/Spatial/point-pattern-analysis-in-r.html>
+
+        1.  Kernel density
+
+        2.  G-function
+
+8.  Spatial autocorrelation
+
+    1.  <https://mgimond.github.io/Spatial/spatial-autocorrelation-in-r.html>
+
+        1.  Local Moran's I
+
+            1.  Map
+
+9.  Creating a spatial weights matrix
+
+10. INLA
+
+11. Final map
+
+# References
+
+Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J, Robinson D, Seidel DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). "Welcome to the tidyverse." *Journal of Open Source Software*, **4**(43), 1686. [doi:10.21105/joss.01686](https://doi.org/10.21105/joss.01686).
+
+Edzer Pebesma, 2018. Simple Features for R: Standardized Support for Spatial Vector Data. The R Journal [10:1, 439-446.](https://journal.r-project.org/archive/2018/RJ-2018-009/index.html)
+
+Cressie, N (1991), *Statistics for spatial data*. New York: Wiley, pp. 386\--389; Cressie, N, Chan NH (1989) Spatial modelling of regional variables. *Journal of the American Statistical Association*, 84, 393\--401; Cressie, N, Read, TRC (1985) Do sudden infant deaths come in clusters? *Statistics and Decisions* Supplement Issue 2, 333\--349; <http://sal.agecon.uiuc.edu/datasets/sids.zip.>
+
+# 
