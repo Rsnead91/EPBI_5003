@@ -1,0 +1,375 @@
+---
+title: "M11 - Spatial data processing, analysis, and mapping in R"
+instructor: ""
+course: "EPBI 5003"
+---
+
+# Module outline
+
+1.  outline
+
+# 1. Data
+
+spatstat package?
+
+-   st_sample
+
+    -   random
+
+    -   clustered
+
+    -   kappa \<- 30 / [st_area](https://r-spatial.github.io/sf/reference/geos_measures.html)(w2) \# intensity th \<- [st_sample](https://r-spatial.github.io/sf/reference/st_sample.html)(w2, kappa = kappa, mu = 3, scale = 0.05, type = "Thomas") [nrow](https://rdrr.io/r/base/nrow.html)(th)
+
+-   <https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
+
+Kernel density estimation
+
+-   simulated data
+
+-   <https://arc2r.github.io/book/Density.html#kernel-density>
+
+-   <https://r-spatial.org/book/11-PointPattern.html>
+
+    -   den1 \<- [density](https://rdrr.io/r/stats/density.html)(pp1, sigma = bw.diggle)
+
+# 2. Creating a spatial weights matrix
+
+<https://www.paulamoraga.com/book-spatial/spatial-neighborhood-matrices.html>
+
+## 2.1 Contiguity
+
+-   Types of objects: nb, list, mat..
+
+```         
+library(spData)
+library(sf)
+library(spdep)
+library(ggplot2)
+
+map <- st_read(system.file("shapes/columbus.shp",
+               package = "spData"), quiet = TRUE)
+
+nb <- spdep::poly2nb(map, queen = TRUE)
+head(nb)
+
+plot(st_geometry(map), border = "lightgray")
+plot.nb(nb, st_geometry(map), add = TRUE)
+
+id <- 20 # area id
+map$neighbors <- "other"
+map$neighbors[id] <- "area"
+map$neighbors[nb[[id]]] <- "neighbors"
+ggplot(map) + geom_sf(aes(fill = neighbors)) + theme_bw() +
+  scale_fill_manual(values = c("gray30", "gray", "white"))
+```
+
+## 2.2 Distance-based
+
+-   knn - num
+
+```         
+# Neighbors based on 3 nearest neighbors
+coo <- st_centroid(map)
+nb <- knn2nb(knearneigh(coo, k = 3)) # k number nearest neighbors
+plot(st_geometry(map), border = "lightgray")
+plot.nb(nb, st_geometry(map), add = TRUE)
+```
+
+-   knn - distance
+
+```         
+# Neighbors based on distance
+nb <- dnearneigh(x = st_centroid(map), d1 = 0, d2 = 0.4)
+plot(st_geometry(map), border = "lightgray")
+plot.nb(nb, st_geometry(map), add = TRUE)
+
+coo <- st_centroid(map)
+# k is the number nearest neighbors
+nb1 <- knn2nb(knearneigh(coo, k = 1))
+
+dist1 <- nbdists(nb1, coo)
+summary(unlist(dist1))
+```
+
+IDW?
+
+8.3 Neighbor weights matrix
+
+```         
+
+# binary
+nb <- poly2nb(map, queen = TRUE)
+nbw <- spdep::nb2listw(nb, style = "W")
+nbw$weights[1:3]
+
+m1 <- listw2mat(nbw)
+lattice::levelplot(t(m1),
+scales = list(y = list(at = c(10, 20, 30, 40),
+                       labels = c(10 20, 30, 40))))
+
+# idw
+coo <- st_centroid(map)
+nb <- poly2nb(map, queen = TRUE)
+dists <- nbdists(nb, coo)
+ids <- lapply(dists, function(x){1/x})
+
+nbw <- nb2listw(nb, glist = ids, style = "B")
+nbw$weights[1:3]
+
+m2 <- listw2mat(nbw)
+lattice::levelplot(t(m2),
+scales = list(y = list(at = c(10, 20, 30, 40),
+                       labels = c(10, 20, 30, 40))))
+```
+
+# 3. Spatial autocorrelation
+
+Moran's I
+
+## 3.1 Global
+
+```         
+# Neighbors
+library(spdep)
+nb <- poly2nb(map, queen = TRUE) # queen shares point or border
+nbw <- nb2listw(nb, style = "W")
+
+# Global Moran's I
+gmoran <- moran.test(map$vble, nbw,
+                     alternative = "greater")
+gmoran
+
+gmoran[["estimate"]][["Moran I statistic"]] # Moran's I
+gmoran[["statistic"]] # z-score
+gmoran[["p.value"]] # p-value
+```
+
+## 3.2 Local 
+
+\- give a sense of what to expect?
+
+-   `Ii`: Local Moran's I� statistic for each area,
+
+-   `E.Ii`: Expectation Local Moran's I� statistic,
+
+-   `Var.Ii`: Variance Local Moran's I� statistic,
+
+-   `Z.Ii`: z-score,
+
+-   `Pr(z > E(Ii))`, `Pr(z < E(Ii))` or `Pr(z != E(Ii))`: p-value for an alternative hypothesis `greater`, `less` or `two.sided`, respectively."
+
+```         
+lmoran <- localmoran(map$vble, nbw, alternative = "greater")
+head(lmoran)
+
+tm_shape(map) + tm_fill(col = "quadrant", title = "",
+breaks = c(1, 2, 3, 4, 5, 6),
+palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
+labels = c("High-High", "Low-Low", "High-Low",
+           "Low-High", "Non-significant")) +
+tm_legend(text.size = 1)  + tm_borders(alpha = 0.5) +
+tm_layout(frame = FALSE,  title = "Clusters")  +
+tm_layout(legend.outside = TRUE)
+```
+
+-   <https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
+
+# 4. Spatial regression
+
+## 4.1 Geographically weighted regression (GWR)
+
+## 4.2 Integrated nested laplace approximation (INLA)
+
+INLA
+
+What data? Scottish lip cancer?
+
+```         
+install.packages("INLA",
+repos = "https://inla.r-inla-download.org/R/stable", dep = TRUE)
+library(INLA)
+```
+
+-   <https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
+
+-   <https://r-spatial.org/book/16-SpatialRegression.html>
+
+# 5. Your turn
+
+## 5.1 Regression
+
+## 5.2 Disease map
+
+# End
+
+```{r}
+library(CARBayesdata)
+data()
+
+data(lipdata)
+
+library(sf)
+library(spatstat.data)
+library(gstat)
+
+library(spatstat)
+
+scotlip <- st_read("https://geodacenter.github.io/data-and-lab/data/scotlip.zip")
+
+
+data(chicago)
+#https://search.r-project.org/CRAN/refmans/spatstat.data/html/chicago.html
+
+data(chicago)
+  if(require(spatstat.linnet)) {
+plot(chicago)
+#plot(as.linnet(chicago), main="Chicago Street Crimes",col="green")
+plot(as.ppp(chicago), add=TRUE, col="red", chars=c(16,2,22,17,24,15,6))
+  }
+
+library(maptools)
+
+chi_pp <- as.SpatialPointsDataFrame.ppp(as.ppp(chicago))
+
+chi_pp2 <- st_as_sf(as.ppp(chicago))
+
+chi_pp3 <- st_as_sf(chicago)
+
+class(chicago)
+
+ggplot(chi_pp3 %>% filter(label != "segment")) + 
+  geom_sf()
+
+view(as.ppp(chicago))
+
+st_coordinates(chi_pp)
+
+view((chicago[["data"]]))
+
+data(nbfires)
+
+#https://hughst.github.io/week-1/
+#https://malariaatlas.org/
+
+
+```
+
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+1.  
+
+2.  Importing and downloading data
+
+    1.  <https://mgimond.github.io/Spatial/reading-and-writing-spatial-data-in-r.html>
+
+    2.  <https://www.paulamoraga.com/book-spatial/the-sf-package-for-spatial-vector-data.html>
+
+        1.  CSV
+
+        2.  Shapefiles
+
+        3.  Census
+
+3.  Writing data
+
+    1.  CSV
+
+    2.  Shapefiles
+
+4.  Basic data processing
+
+    1.  Sf and Raster package features
+
+    2.  Create new shapefile
+
+        1.  Filter?
+
+    3.  Coordinate systems
+
+        1.  Setting, checking, comparing
+
+    4.  ...
+
+5.  Make a map
+
+    1.  tmap
+
+    2.  ggplot
+
+        1.  Inset?
+
+        2.  Arrow/Scale bar
+
+        3.  Theme
+
+        4.  Color scales
+
+    3.  Leaflet
+
+    4.  <https://mgimond.github.io/Spatial/mapping-rates-in-r.html>
+
+    5.  <https://mgimond.github.io/Spatial/mapping-data-in-r.html>
+
+6.  Descriptive statistics
+
+    1.  Aspatial
+
+    2.  Spatial
+
+        1.  Intersection to count overlapping points
+
+7.  Point pattern analysis
+
+    1.  <https://mgimond.github.io/Spatial/point-pattern-analysis-in-r.html>
+
+        1.  Kernel density
+
+        2.  G-function
+
+8.  Spatial autocorrelation
+
+    1.  <https://mgimond.github.io/Spatial/spatial-autocorrelation-in-r.html>
+
+        1.  Local Moran's I
+
+            1.  Map
+
+9.  Creating a spatial weights matrix
+
+10. INLA
+
+11. Final map
+
+# References
+
+Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J, Robinson D, Seidel DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). "Welcome to the tidyverse." *Journal of Open Source Software*, **4**(43), 1686. [doi:10.21105/joss.01686](https://doi.org/10.21105/joss.01686).
+
+Edzer Pebesma, 2018. Simple Features for R: Standardized Support for Spatial Vector Data. The R Journal [10:1, 439-446.](https://journal.r-project.org/archive/2018/RJ-2018-009/index.html)
+
+Cressie, N (1991), *Statistics for spatial data*. New York: Wiley, pp. 386\--389; Cressie, N, Chan NH (1989) Spatial modelling of regional variables. *Journal of the American Statistical Association*, 84, 393\--401; Cressie, N, Read, TRC (1985) Do sudden infant deaths come in clusters? *Statistics and Decisions* Supplement Issue 2, 333\--349; <http://sal.agecon.uiuc.edu/datasets/sids.zip.>
+
+<https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
+
+<https://r-spatial.org/book/16-SpatialRegression.html>
+
+<https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
+
+<https://www.paulamoraga.com/book-spatial/spatial-neighborhood-matrices.html>
+
+<https://www.paulamoraga.com/book-spatial/the-k-function.html>
+
+<https://arc2r.github.io/book/Density.html#kernel-density>
+
+<https://r-spatial.org/book/11-PointPattern.html>
+
+<https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
+
+<https://www.paulamoraga.com/book-geospatial/sec-spatialdataandCRS.html>
+
+<https://arc2r.github.io/book/Static_Maps.html>
+
+<https://ggplot2-book.org/>
+
+# 
+
+# 
