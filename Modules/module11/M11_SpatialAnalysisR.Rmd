@@ -1,21 +1,20 @@
 ---
 title: "M11 - Spatial data processing, analysis, and mapping in R"
-instructor: ""
-course: "EPBI 5003"
+instructor: ''
+course: EPBI 5003
+output:
+  html_document:
+    df_print: paged
 ---
 
 # Module outline
 
 1.  R Packages for spatial data management, analysis, and visualization
-2.  The `sf` package
-3.  Importing and downloading data
-4.  Writing data
-5.  Spatial data processing
+2.  The `Tidyverse`
+3.  The `sf` package
+4.  Importing and exporting data
+5.  Spatial data processing and basic analysis
 6.  Creating a map in R
-7.  Point pattern analysis
-8.  Creating a spatial weights matrix
-9.  Spatial autocorrelation
-10. Spatial Regression
 
 # **1.** R Packages for spatial data management, analysis, and visualization
 
@@ -251,6 +250,7 @@ Using the `nc_sids` sf object, let's check the coordinate system.
 ```{r, echo=TRUE}
 # checking the assigned crs for nc_sids
 st_crs(nc_sids)
+#?st_crs
 ```
 
 From the output, we can see the CRS is set to `NAD27`, which is referred to by the EPSG code `4267`. Additionally, the `st_crs()` function returns outputs CRS information like the datum and prime meridian. This [website](https://guides.library.duke.edu/r-geospatial/CRS) has a list of common CRS EPSG codes.
@@ -260,6 +260,7 @@ Let's change the `nc_sids` CRS from NAD27 to USA Contiguous Albers Equal Area Co
 ```{r, echo=TRUE}
 # changing the crs of the original nc_sids sf object
 nc_sids_5070 <- st_transform(nc_sids, crs = 5070)
+#?st_transform
 
 # check the new object is set to the new crs
 st_crs(nc_sids_5070)
@@ -273,6 +274,7 @@ Now let's visually compare the original and transformed data using `ggplot()` wi
 # plot the nc_sids sf object
 ggplot(nc_sids) +
   geom_sf()
+#?ggplot
 
 # plot the nc_sids_5070 sf object
 ggplot(nc_sids_5070) +
@@ -298,9 +300,11 @@ Suppose we want to remove all counties that had 0 SIDs from 1979-1984. We could 
 # table() outputs the frequencies of each value
 # to refer to a specific variable in a data set, we can use '$' followed by the variable name
 table(nc_sids$SID79)
+#?table
 
 # how many rows (counties) are in NC
 length(nc_sids$SID79)
+#?length
 ```
 
 9 counties have 0 SIDS from 1979-1984. The `length()` function returns the number of rows in the data. Each row corresponds to a county in North Carolina. Therefore, after filtering our data, we would expect to 91 (100-9) remaining records.
@@ -308,6 +312,7 @@ length(nc_sids$SID79)
 ```{r, echo=TRUE}
 # remove counties that have 0 SIDS from 1979-1984
 nc_sids_no0 <- filter(nc_sids, SID79 > 0)
+#?filter
 
 # how many rows (counties) are there
 length(nc_sids_no0$SID79)
@@ -347,6 +352,7 @@ library(tigris)
 
 # creating a shapefile of PA county cartographic boundaries ('cb = TRUE')
 pa_counties <- counties(state = "PA", cb = TRUE)
+#?counties
 
 # importing a zipped folder of all four shapefile for all the residential and municipal landfills in PA
 # data comes from https://www.pasda.psu.edu/
@@ -381,19 +387,26 @@ To count the number of points in each county, we can use st_intersects(). Howeve
 ```{r}
 # original intersect list output
 landfill_count <- st_intersects(pa_counties, pa_landfills)
+#?st_intersects
 
 # take a look around the list to get familiar with this data type, if you want
 #view(landfill_count)
 
 # instead, we'll pull out the lengths of each list item and then add it as a variable to a new data set with county names
 # creating a new sf object with only the county name
+
+#NOTE: WHENEVER YOU USE 'SELECT' ALWAYS PUT 'DPLYR::' IN FRONT OF THE NAME TO SPECIFICALLY REFERENCE THE SELECT FUNCTION FROM THE DPLYR PACKAGE. R GETS CONFUSED AND THINKS YOU ARE REFERRING TO A DIFFERENT SELECT FUNCTION AND YOU'LL GET AN ERROR.
+
 county_names <- dplyr::select(pa_counties, NAME)
+#?dplyr::select
 
 # creating a data frame that is a single column with the counts of landfills for each county
 landfill_count_df <- data.frame(count = lengths(st_intersects(pa_counties, pa_landfills)))
+#?data.frame
 
 # since I know the order of the county names and landfill counts are the same, I can simply combine these two objects together using cbind()
 county_landfill_counts <- cbind(county_names, landfill_count_df)
+?#cbind
 
 print(county_landfill_counts)
 ```
@@ -406,6 +419,7 @@ erie <- filter(pa_counties, NAME == "Erie")
 
 # run st_intersection() with the area we want out points to subset to first and the features we want to subset second
 erie_landfills <- st_intersection(erie, pa_landfills)
+#?st_intersection
 
 # check if we were successful
 ggplot() +
@@ -420,6 +434,7 @@ First, we'll pull the census tracts for Erie County.
 ```{r}
 # get pa census tracts for erie county (fips = 049) using 2010 decennial census boundaries
 erie_tracts <- tracts(state = "PA", county = 049, cb = TRUE, year = 2010)
+#?tracts
 
 # double check output
 ggplot() +
@@ -432,6 +447,7 @@ Next, we'll create the centroids for each census tract.
 ```{r}
 # calculate census tract centroids
 erie_centroids <- st_centroid(erie_tracts)
+#?st_centroid
 
 # double check output
 ggplot() +
@@ -446,6 +462,7 @@ Easy as pie. Once we have the centroids, we can calculate distances for each cen
 # identify the closest landfill to each centroid
 # st_nearest_feature returns the row number of the nearest landfill for each tract centroid
 landfill_near <- st_nearest_feature(erie_centroids, erie_landfills)
+#?st_nearest_feature
 
 # the output is just a vector of row numbers
 # note there are 71 values and 71 census tracts in erie, so we were successful in calculating the nearest landfill for each tract
@@ -458,6 +475,7 @@ Then, we calculate distance to the nearest landfill that was identified by subse
 # calculate the distance
 # distance is returned in meters because these are the units used in the crs
 dist <- st_distance(erie_centroids, erie_landfills[landfill_near,], by_element = TRUE)
+#?st_distance
 
 # as.numeric converts the distance values to numeric format
 dist_df <- data.frame(landfill_near = as.numeric(dist))
@@ -509,8 +527,6 @@ ggplot(nc_sids) +
   labs(title = "sample map") +
   # optional elements: theme
   theme(
-    # set all text to Arial font
-    text = element_text(family = "Arial"),
     # set the background of the map to white
     panel.background = element_rect(fill = "white"),
     # remove all axis text (i.e., lat/long)
@@ -550,7 +566,7 @@ ggplot() +
 
 -   **size:** lines, points
 
-**Color:** This applies to both "color" and "fill" aesthetics. Assigning and changing color is the most challenging and versatile aspect of the aesthetics. Single colors can be specified by name or more specifically through hex codes.
+**Color:** This applies to both "color" and "fill" aesthetics. Assigning and changing color is the most challenging and versatile aspect of the aesthetics. Within the `geom_*()` or `aes()` functions, single colors can be specified by name or more specifically through hex codes.
 
 ```{r}
 # 000000 and FFFFFF are the hexcodes for black and white, respectively.
@@ -559,430 +575,298 @@ ggplot() +
   geom_sf(data = pa_landfills, color = "red")
 ```
 
-When it comes to color scales, there are a myriad of options.
+However, when it comes to color scales, there are a myriad of options. To modify the color scale, an additional element must be added to the ggplot. The grammar of the new element depends on the aesthetic (i.e., color or fill), if the scale is discrete or continuous, and the source of the color palette. For example, the [default](https://ggplot2.tidyverse.org/reference/scale_colour_continuous.html) settings are adjusted using `scale_*_continuous()` and `scale_*_binned()`.
 
-Palletes
+Using color gradients let's you easily create your own personal color scale:
 
-Manual
+-   `scale_*_gradient(low = , high = )`: Specify the color for low and high values to create a two-color gradient
 
-The default to set color scales is scale\_\*\_continuous()
+-   `scale_*_gradient2(low = , mid = , high = , midpoint = )`: Specify the color for low, mid, and high values, as well as specify the midpoint of the scale, to create a three-color gradient
 
-Continuous scale: scale_color_continuous
+-   `scale_*_gradientn(colors = )`: Include a character vector of color values to create a color gradient with as many colors as you like.
 
-viridis
+These color gradients can be discretized by adding "break" values.
 
-RColorBrewer
+The following examples were adapted from the [ggplot book](https://ggplot2-book.org/). Keep or change the colors and see how the figure updates:
 
--   continuous: scale\_\*\_distiller()
+```{r}
+# creating a random data set to test out different color schemes
+set.seed(123)
+df <- data.frame(
+  x = runif(100),
+  y = runif(100),
+  z = rnorm(100)
+)
+#?set.seed
+#?runif
+#?rnorm
 
--   discrete: scale\_\*\_brewer()
+ggplot(df, aes(x, y)) +
+  geom_point(aes(color = z)) +
+  scale_color_gradient(low = "blue", high = "red")
 
-Alternatively, you can manually set the scale with scale_manual...
+ggplot(df, aes(x, y)) +
+  geom_point(aes(color = z)) +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)
 
-set na values with na.value = NA or na.value = "red"
+ggplot(df, aes(x, y)) +
+  geom_point(aes(color = z)) +
+  scale_color_gradientn(colors = c("red","orange","yellow","green","blue","violet"))
+```
 
-Also breaks...
+Common color palettes are [viridis](https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html#tldr) and [RColorBrewer](https://r-graph-gallery.com/38-rcolorbrewers-palettes.html). Here are the color palettes for RColorBrewer. To use these palettes, reference the names next to the color scales within the RColorBrewer functions for ggplot.
+
+-   **Continuous:** `scale_*_distiller(palette = )`
+
+-   **Discrete:** ``` scale_*_brewer(``palette =``) ```
+
+![](images/brewer-disp-1.png)
+
+Here are the color scales for the viridis palette, using the following functions
+
+-   **Continuous:** `scale_*_viridis(option = )`
+
+-   **Discrete:** `scale_*_viridis(option = , discrete = TRUE)`
+
+![](images/download.png)
+
+Explore these color palettes with county unemployment data:
+
+```{r}
+
+##############################################################################################
+# dont modify this code
+
+# install.packages("RColorBrewer")
+# install.packages("viridis")
+
+library(RColorBrewer)
+library(viridis)
+
+unemp <- force(unemp)
+#?force
+
+# Add leading zeros
+unemp$state_fips <- sprintf("%02d", unemp$state_fips)
+unemp$county_fips <- sprintf("%03d", unemp$county_fips)
+#?sprintf
+
+us_counties <- counties(cb = TRUE) %>% st_transform(crs = 5070)
+
+us_unemp <- left_join(unemp, us_counties, by = c("state_fips" = "STATEFP", "county_fips" = "COUNTYFP")) %>% filter(!(state_fips %in% c("02","15","60","64","66","68","69","70","72","74","78"))) # removing non-contiguous states/territories
+#?left_join
+
+##############################################################################################
+
+map <- ggplot() +
+        geom_sf(data = us_unemp, 
+                color = alpha("white", 0.25), 
+                aes(fill = rate, geometry = geometry))
+
+# default
+map
+
+# testing different palettes
+
+#RColorBrewer
+map + scale_fill_distiller(palette = "YlOrRd")
+map + scale_fill_distiller(palette = "Spectral")
+
+#viridis
+map + scale_fill_viridis(option = "viridis")
+map + scale_fill_viridis(option = "plasma")
+```
+
+Alternatively, you can manually set your scales if none of the palettes fit you needs. Let's visualize US county unemployment data as quartiles instead of a continuous scale. We can use the following code to create a new categorical variable for quartiles.
+
+```{r}
+# return the unemployment rate values at each quartile (e.g., 25%, 50%, 75%..)
+quartiles <- quantile(us_unemp$rate, probs = c(0, .25, .50, .75, 1))
+quartiles
+#?quantile
+
+us_unemp$rate_q <- cut(us_unemp$rate, breaks = quartiles, include.lowest = TRUE, labels = FALSE)
+#?cut
+
+head(us_unemp[,c("rate","rate_q")])
+```
+
+Now we can assign our manual scale to the new rate quartiles variable.
+
+```{r}
+map <- ggplot() +
+        geom_sf(data = us_unemp, 
+                color = alpha("white", 0.25), 
+                aes(fill = factor(rate_q), geometry = geometry))
+
+map + scale_fill_manual(values = c("#feedde","#fdbe85","#fd8d3c","#d94701"))
+```
+
+Go to this website: <https://colorbrewer2.org/#type=sequential&scheme=BuGn&n=3> and change the colors to make your own scale.
 
 ### 6.1.4 Formatting
 
-CRS
+Once we have our map aesthetics looking the way we want, we can begin to fine-tune our figure by adding a title, labels, fixing the legend, and making the plot area look the way we want.
 
--   breaks
+```{r}
+# start with the map we ended on in the last step but updating the color aesthetic
+map <- ggplot() +
+        geom_sf(data = us_unemp, 
+                aes(fill = factor(rate_q), color = factor(rate_q), geometry = geometry)) +
+        scale_fill_manual(values = c("#feedde","#fdbe85","#fd8d3c","#d94701")) +
+        scale_color_manual(values = c("#feedde","#fdbe85","#fd8d3c","#d94701"))
 
--   ggspatial
+map
+```
 
-    -   arrow bar
+To add a [**title**](https://ggplot2.tidyverse.org/reference/labs.html), we will use `labs()`, which can also set a subtitle and the y- and x-axis labels. Axis labels are typically unnecessary for disease maps, however. To add your title underneath the figure, like in a scientific manuscript, you would add a "caption" rather than a "title".
 
--   <https://www.paulamoraga.com/book-geospatial/sec-spatialdataandCRS.html>
+```{r}
+# add a title
+map + labs(title = "County-level Unemployment Rates in the United States, 2009")
 
--   <https://arc2r.github.io/book/Static_Maps.html>
+map + labs(caption = "County-level Unemployment Rates in the United States, 2009")
+```
+
+Great! Next we will fix the legend by adding a title and value labels. Working with the legend is not as straightforward adding titles or legends, so we'll accomplish our goal across two different elements. To add a legend title, this can be incoporated within `labs()` by referencing the aesthetic. To add value labels, they can be included within our scales.
+
+NOTE: If you use fill and color, only provide a title and labels to one aesthetic. The other aesthetic will need to be suppressed using `guides()` so you don't have multiple legends in the same figure.
+
+```{r}
+map <- ggplot() +
+        geom_sf(data = us_unemp, 
+                aes(fill = factor(rate_q), color = factor(rate_q), geometry = geometry)) +
+        scale_fill_manual(values = c("#feedde","#fdbe85","#fd8d3c","#d94701"), 
+                          labels = c("0-25%","25-50%","50-75%","75-100%")) +
+        scale_color_manual(values = c("#feedde","#fdbe85","#fd8d3c","#d94701")) +
+        labs(title = "County-level Unemployment Rates in the United States, 2009",
+             fill = "Quartiles")
+
+map
+
+# suppressing the legend for color 
+map + guides(color = "none")
+```
+
+Wonderful! Now that our legend looks the way we want, it's time to clean up the rest of the plot. Specifically, we want to [remove the grey background]{.underline} from the "panel", which is the area of the plot where the data is visualized, [remove the axis tick marks and text]{.underline}, [change the legend position to the bottom]{.underline} of the figure, and [center justify the title]{.underline}. Any formatting changes you want to make can be accomplished within the [`theme()`](https://ggplot2.tidyverse.org/reference/theme.html) element. Take a look at the theme hyperlink and check out all the different aspects that are modifiable.
+
+To modify any item in the plot, you first reference that item, and set it equal to the type of "element" it is: `element_rect()`, `element_text()`, or `element_line()`. Within those element functions is where you specify the formatting changes you want. Using `element_blank()` removes that item from the figure.
+
+```{r}
+##############################################################################################
+# base map
+map <- ggplot() +
+        geom_sf(data = us_unemp, 
+                aes(fill = factor(rate_q), color = factor(rate_q), geometry = geometry)) +
+        scale_fill_manual(values = c("#feedde","#fdbe85","#fd8d3c","#d94701"), 
+                          labels = c("0-25%","25-50%","50-75%","75-100%")) +
+        scale_color_manual(values = c("#feedde","#fdbe85","#fd8d3c","#d94701")) +
+        labs(title = "County-level Unemployment Rates in the United States, 2009",
+             fill = "Quartiles") + 
+        guides(color = "none")
+map
+##############################################################################################
+
+# remove the grey background
+map + theme(panel.background = element_blank())
+
+# remove axis ticks and text
+map + theme(panel.background = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank())
+
+# change the legend position to the bottom
+map + theme(panel.background = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank(),
+            legend.position = "bottom")
+
+# center justify the title
+map + theme(panel.background = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank(),
+            legend.position = "bottom",
+            plot.title = element_text(hjust = 0.5))
+```
+
+While using the `theme()` element allows complete control over the format of your figure, it can be cumbersome. If you don't want to go through the hassle of manually changing each item, there are a number of [built-in themes](https://ggplot2.tidyverse.org/reference/ggtheme.html) that are easy to apply. For example:
+
+```{r}
+# black and white
+map + theme_bw()
+
+# classic
+map + theme_classic()
+
+# minimal
+map + theme_minimal()
+
+# void
+map + theme_void()
+```
+
+These built-in themes can be used as a base to which you can make additional changes like in `theme()`.
+
+Now the only remaining parts of the figure are specific to disease mapping, the scale bar and north arrow. Both elements can be added using the **ggspatial** package with `annotation_scale()` and `annotation_north_arrow()`. We can set their location to "tr" (top right), "tl" (top left), "bl" (bottom left), and "br" (bottom right).
+
+```{r}
+##############################################################################################
+# base map
+map <- map + theme(panel.background = element_blank(),
+                    axis.text = element_blank(),
+                    axis.ticks = element_blank(),
+                    legend.position = "bottom",
+                    plot.title = element_text(hjust = 0.5))
+##############################################################################################
+
+# install.packages("ggspatial")
+library(ggspatial)
+
+# unit_category changes the units from kilometers to miles
+map + annotation_scale(location = "bl", unit_category = "imperial")
+
+# which_north = TRUE sets the north arrow to "true north"
+map + annotation_scale(location = "bl", unit_category = "imperial") + 
+      annotation_north_arrow(location = "br", which_north = "TRUE")
+```
+
+To save your figure, simply place ggsave() immediately after the plot. You can specify the location to export the figure just like when you export any other file. The figure can be output as a pdf, png, jpeg, and a number of other options. Additionally, using "height" and "width" allows you to specify the dimensions of the figure. If left blank, R determines the dimensions on it's own.
+
+```{r}
+# exporting the figure as a png and naming it us_county_unemp
+map + annotation_scale(location = "bl", unit_category = "imperial") + 
+      annotation_north_arrow(location = "br", which_north = "TRUE")
+
+ggsave("us_county_unemp.png")
+#?ggsave
+```
 
 ## 6.2 Interactive map
 
-NC data?
+In addition to static maps, you can create "interactive" maps in R. This is out of the scope of this course, but if you want to explore more, here is some sample code from [Paul Moraga's book](https://www.paulamoraga.com/book-geospatial/sec-spatialdataandCRS.html) using **leaflet** to get you started. Additionally, you can learn more [here](https://rstudio.github.io/leaflet/) and [here](https://r-charts.com/spatial/interactive-maps-leaflet/#leaflet).
 
-scotlip data?
-
-```         
-# Define your basemap
-basemap <- leaflet() %>% addTiles()
-basemap
-
-basemap %>% addPolygons(data=ETH_Adm_1)
-
-basemap %>% addPolygons(data=ETH_Adm_1, color = "red", 
-                        weight = 1, fillOpacity = 0.2, 
-                        popup = ETH_Adm_1$NAME_1) %>%
-  
-            addCircleMarkers(data=ETH_malaria_data_SPDF,
-                             color="green", radius = 2) %>%
-      
-      addLegend(pal = colorPal, 
-                title = "Prevalence",
-                values = ETH_malaria_data_SPDF$pf_pr)
-                
-
-
-
+```{r}
+# install.packages("leaflet")
 library(leaflet)
 
-pal <- colorNumeric("YlOrRd", domain = map$SID74)
+pal <- colorNumeric("YlOrRd", domain = nc_sids$SID74)
 
-leaflet(map) %>%
+# basemap
+leaflet(nc_sids) %>%
   addTiles() %>%
+  
+  # polygons
   addPolygons(
     color = "white", fillColor = ~ pal(SID74),
     fillOpacity = 1
   ) %>%
+  
+  # legend
   addLegend(pal = pal, values = ~SID74, opacity = 1)
-  
-  
-```
-
-# 7. Point pattern analysis
-
-spatstat package?
-
--   st_sample
-
-    -   random
-
-    -   clustered
-
-    -   kappa \<- 30 / [st_area](https://r-spatial.github.io/sf/reference/geos_measures.html)(w2) \# intensity
-        th \<- [st_sample](https://r-spatial.github.io/sf/reference/st_sample.html)(w2, kappa = kappa, mu = 3, scale = 0.05,
-        type = "Thomas")
-        [nrow](https://rdrr.io/r/base/nrow.html)(th)
-
--   <https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
-
-Kernel density estimation
-
--   simulated data
-
--   <https://arc2r.github.io/book/Density.html#kernel-density>
-
--   <https://r-spatial.org/book/11-PointPattern.html>
-
-    -   den1 \<- [density](https://rdrr.io/r/stats/density.html)(pp1, sigma = bw.diggle)
-
-G or K-function
-
--   malaria data
-
--   K: <https://www.paulamoraga.com/book-spatial/the-k-function.html>
-
-```         
-library(spatstat)
-X <- rpoispp(lambda = 100)
-plot(X)
-axis(1)
-axis(2)
-
-K <- Kest(X)
-plot(K)
-
-E <- envelope(X, Kest, nsim = 99)
-plot(E)
-```
-
-# 8. Creating a spatial weights matrix
-
-<https://www.paulamoraga.com/book-spatial/spatial-neighborhood-matrices.html>
-
-## 8.1 Contiguity
-
--   Types of objects: nb, list, mat..
-
-```         
-library(spData)
-library(sf)
-library(spdep)
-library(ggplot2)
-
-map <- st_read(system.file("shapes/columbus.shp",
-               package = "spData"), quiet = TRUE)
-
-nb <- spdep::poly2nb(map, queen = TRUE)
-head(nb)
-
-plot(st_geometry(map), border = "lightgray")
-plot.nb(nb, st_geometry(map), add = TRUE)
-
-id <- 20 # area id
-map$neighbors <- "other"
-map$neighbors[id] <- "area"
-map$neighbors[nb[[id]]] <- "neighbors"
-ggplot(map) + geom_sf(aes(fill = neighbors)) + theme_bw() +
-  scale_fill_manual(values = c("gray30", "gray", "white"))
-```
-
-## 8.2 Distance-based
-
--   knn - num
-
-```         
-# Neighbors based on 3 nearest neighbors
-coo <- st_centroid(map)
-nb <- knn2nb(knearneigh(coo, k = 3)) # k number nearest neighbors
-plot(st_geometry(map), border = "lightgray")
-plot.nb(nb, st_geometry(map), add = TRUE)
-```
-
--   knn - distance
-
-```         
-# Neighbors based on distance
-nb <- dnearneigh(x = st_centroid(map), d1 = 0, d2 = 0.4)
-plot(st_geometry(map), border = "lightgray")
-plot.nb(nb, st_geometry(map), add = TRUE)
-
-coo <- st_centroid(map)
-# k is the number nearest neighbors
-nb1 <- knn2nb(knearneigh(coo, k = 1))
-
-dist1 <- nbdists(nb1, coo)
-summary(unlist(dist1))
-```
-
-IDW?
-
-8.3 Neighbor weights matrix
-
-```         
-
-# binary
-nb <- poly2nb(map, queen = TRUE)
-nbw <- spdep::nb2listw(nb, style = "W")
-nbw$weights[1:3]
-
-m1 <- listw2mat(nbw)
-lattice::levelplot(t(m1),
-scales = list(y = list(at = c(10, 20, 30, 40),
-                       labels = c(10 20, 30, 40))))
-
-# idw
-coo <- st_centroid(map)
-nb <- poly2nb(map, queen = TRUE)
-dists <- nbdists(nb, coo)
-ids <- lapply(dists, function(x){1/x})
-
-nbw <- nb2listw(nb, glist = ids, style = "B")
-nbw$weights[1:3]
-
-m2 <- listw2mat(nbw)
-lattice::levelplot(t(m2),
-scales = list(y = list(at = c(10, 20, 30, 40),
-                       labels = c(10, 20, 30, 40))))
-```
-
-# 9. Spatial autocorrelation
-
-Moran's I
-
--   Global
-
-```         
-# Neighbors
-library(spdep)
-nb <- poly2nb(map, queen = TRUE) # queen shares point or border
-nbw <- nb2listw(nb, style = "W")
-
-# Global Moran's I
-gmoran <- moran.test(map$vble, nbw,
-                     alternative = "greater")
-gmoran
-
-gmoran[["estimate"]][["Moran I statistic"]] # Moran's I
-gmoran[["statistic"]] # z-score
-gmoran[["p.value"]] # p-value
-```
-
--   Local"
-
-    -   `Ii`: Local Moran\'s I� statistic for each area,
-
-    -   `E.Ii`: Expectation Local Moran\'s I� statistic,
-
-    -   `Var.Ii`: Variance Local Moran\'s I� statistic,
-
-    -   `Z.Ii`: z-score,
-
-    -   `Pr(z > E(Ii))`, `Pr(z < E(Ii))` or `Pr(z != E(Ii))`: p-value for an alternative hypothesis `greater`, `less` or `two.sided`, respectively."
-
-    ```         
-    lmoran <- localmoran(map$vble, nbw, alternative = "greater")
-    head(lmoran)
-
-    tm_shape(map) + tm_fill(col = "quadrant", title = "",
-    breaks = c(1, 2, 3, 4, 5, 6),
-    palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
-    labels = c("High-High", "Low-Low", "High-Low",
-               "Low-High", "Non-significant")) +
-    tm_legend(text.size = 1)  + tm_borders(alpha = 0.5) +
-    tm_layout(frame = FALSE,  title = "Clusters")  +
-    tm_layout(legend.outside = TRUE)
-    ```
-
--   <https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
-
-# 10. Spatial Regression
-
-INLA
-
-What data? Scottish lip cancer?
-
-```         
-install.packages("INLA",
-repos = "https://inla.r-inla-download.org/R/stable", dep = TRUE)
-library(INLA)
-```
-
--   <https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
-
--   <https://r-spatial.org/book/16-SpatialRegression.html>
-
-# 
-
-# End
-
-```{r}
-library(CARBayesdata)
-data()
-
-data(lipdata)
-
-library(sf)
-library(spatstat.data)
-library(gstat)
-
-library(spatstat)
-
-scotlip <- st_read("https://geodacenter.github.io/data-and-lab/data/scotlip.zip")
-
-
-data(chicago)
-#https://search.r-project.org/CRAN/refmans/spatstat.data/html/chicago.html
-
-data(chicago)
-  if(require(spatstat.linnet)) {
-plot(chicago)
-#plot(as.linnet(chicago), main="Chicago Street Crimes",col="green")
-plot(as.ppp(chicago), add=TRUE, col="red", chars=c(16,2,22,17,24,15,6))
-  }
-
-library(maptools)
-
-chi_pp <- as.SpatialPointsDataFrame.ppp(as.ppp(chicago))
-
-chi_pp2 <- st_as_sf(as.ppp(chicago))
-
-chi_pp3 <- st_as_sf(chicago)
-
-class(chicago)
-
-ggplot(chi_pp3 %>% filter(label != "segment")) + 
-  geom_sf()
-
-view(as.ppp(chicago))
-
-st_coordinates(chi_pp)
-
-view((chicago[["data"]]))
-
-data(nbfires)
-
-#https://hughst.github.io/week-1/
-#https://malariaatlas.org/
-
 
 ```
 
-\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
-
-1.  
-
-2.  Importing and downloading data
-
-    1.  <https://mgimond.github.io/Spatial/reading-and-writing-spatial-data-in-r.html>
-
-    2.  <https://www.paulamoraga.com/book-spatial/the-sf-package-for-spatial-vector-data.html>
-
-        1.  CSV
-
-        2.  Shapefiles
-
-        3.  Census
-
-3.  Writing data
-
-    1.  CSV
-
-    2.  Shapefiles
-
-4.  Basic data processing
-
-    1.  Sf and Raster package features
-
-    2.  Create new shapefile
-
-        1.  Filter?
-
-    3.  Coordinate systems
-
-        1.  Setting, checking, comparing
-
-    4.  ...
-
-5.  Make a map
-
-    1.  tmap
-
-    2.  ggplot
-
-        1.  Inset?
-
-        2.  Arrow/Scale bar
-
-        3.  Theme
-
-        4.  Color scales
-
-    3.  Leaflet
-
-    4.  <https://mgimond.github.io/Spatial/mapping-rates-in-r.html>
-
-    5.  <https://mgimond.github.io/Spatial/mapping-data-in-r.html>
-
-6.  Descriptive statistics
-
-    1.  Aspatial
-
-    2.  Spatial
-
-        1.  Intersection to count overlapping points
-
-7.  Point pattern analysis
-
-    1.  <https://mgimond.github.io/Spatial/point-pattern-analysis-in-r.html>
-
-        1.  Kernel density
-
-        2.  G-function
-
-8.  Spatial autocorrelation
-
-    1.  <https://mgimond.github.io/Spatial/spatial-autocorrelation-in-r.html>
-
-        1.  Local Moran's I
-
-            1.  Map
-
-9.  Creating a spatial weights matrix
-
-10. INLA
-
-11. Final map
+# Any questions?
 
 # References
 
@@ -992,28 +876,14 @@ Edzer Pebesma, 2018. Simple Features for R: Standardized Support for Spatial Vec
 
 Cressie, N (1991), *Statistics for spatial data*. New York: Wiley, pp. 386\--389; Cressie, N, Chan NH (1989) Spatial modelling of regional variables. *Journal of the American Statistical Association*, 84, 393\--401; Cressie, N, Read, TRC (1985) Do sudden infant deaths come in clusters? *Statistics and Decisions* Supplement Issue 2, 333\--349; <http://sal.agecon.uiuc.edu/datasets/sids.zip.>
 
-<https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
-
-<https://r-spatial.org/book/16-SpatialRegression.html>
-
-<https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
-
-<https://www.paulamoraga.com/book-spatial/spatial-neighborhood-matrices.html>
-
-<https://www.paulamoraga.com/book-spatial/the-k-function.html>
-
-<https://arc2r.github.io/book/Density.html#kernel-density>
-
-<https://r-spatial.org/book/11-PointPattern.html>
-
-<https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
-
-<https://www.paulamoraga.com/book-geospatial/sec-spatialdataandCRS.html>
+Moraga, Paula. (2019). Geospatial Health Data: Modeling and Visualization with R-INLA and Shiny. Chapman & Hall/CRC Biostatistics Series
 
 <https://arc2r.github.io/book/Static_Maps.html>
 
-<https://ggplot2-book.org/>
+Wickham, Hadley, and Hadley Wickham. "Getting Started with ggplot2." *ggplot2: Elegant graphics for data analysis* (2016): 11-31.
 
-# 
+<https://r4ds.hadley.nz/>
+
+Moraga, Paula. (2023). Spatial Statistics for Data Science: Theory and Practice with R. Chapman & Hall/CRC Data Science Series.
 
 # 
