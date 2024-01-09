@@ -14,11 +14,9 @@ course: "EPBI 5003"
 
 4.  Spatial regression
 
-5.  In-class exercise
-
 # 1. Data
 
-We'll be using a commonly reference data set for exploring and learning spatial regression. The lip cancer case data among Males in Scotland counties from 1975 to 1980. We will use this data to assess patterns in the standardized incidence ratios (SIR), for cancer clustering, and estimate the risk of lip cancer relative to the proportion of the population in agriculture, fishing, or forestry (AFF), which is a risk factor for lip cancer given the increased exposure to sun light.
+We'll be using a commonly reference data set for exploring and learning spatial regression. The lip cancer case data among Males in Scotland counties from 1975 to 1980. We will use this data to assess patterns in the standardized incidence ratios (SIR), for cancer clustering, and estimate the risk of lip cancer relative to the proportion of the population in agriculture, fishing, or forestry (AFF) industry, which is a risk factor for lip cancer given the increased exposure to sun light.
 
 ```{r}
 # load libraries
@@ -28,15 +26,15 @@ library(sf)
 # the following code reads in the zip file from github with the scottish lip cancer shapefile
 t1 <- tempfile()
 t2 <- tempfile()
-lmi <- download.file("https://raw.githubusercontent.com/Rsnead91/EPBI_5003/main/Modules/module12/lmi.zip",t1)
+scotlip <- download.file("https://raw.githubusercontent.com/Rsnead91/EPBI_5003/main/Modules/module12/scotlip.zip",t1)
 unzip(zipfile = t1, exdir = t2)
-lmi <- st_read(t2)
+scotlip <- st_read(t2)
 
 # review the data types
-str(lmi)
+str(scotlip)
 
 # review the raw data
-head(lmi)
+head(scotlip)
 ```
 
 The variables included in the data are:
@@ -60,30 +58,30 @@ First we'll run a ggplot to make sure the projection looks right. Then, we will 
 ```{r}
 # take a look at the study area
 # the crs code is set to ESPG 27700, the projection for OSGB 1936/British National Grid, which is commonly used for the UK
-# you could find the crs by simply running: st_crs(lmi)
+# you could find the crs by simply running: st_crs(scotlip)
 ggplot() +
-  geom_sf(data = lmi)
+  geom_sf(data = scotlip)
 
 # using the summary function to return descriptive statistics on the subset numeric data
-summary(lmi[,c("POP","CANCER","CEXP","AFF")])
+summary(scotlip[,c("POP","CANCER","CEXP","AFF")])
 
 # mapping variables of interest
 
 # population
 ggplot() +
-  geom_sf(data = lmi, aes(fill = POP))
+  geom_sf(data = scotlip, aes(fill = POP))
 
 # observed cancer cases
 ggplot() +
-  geom_sf(data = lmi, aes(fill = CANCER))
+  geom_sf(data = scotlip, aes(fill = CANCER))
 
 # expected cancer cases
 ggplot() +
-  geom_sf(data = lmi, aes(fill = CEXP))
+  geom_sf(data = scotlip, aes(fill = CEXP))
 
 # proportion of county in an outdoor industry
 ggplot() +
-  geom_sf(data = lmi, aes(fill = AFF))
+  geom_sf(data = scotlip, aes(fill = AFF))
 
 ```
 
@@ -93,14 +91,14 @@ Now let's calculate the SIR and map the results.
 
 ```{r}
 # create a new variable for SIR by dividing the observed by expected # of cases
-lmi$SIR <- lmi$CANCER / lmi$CEXP
+scotlip$SIR <- scotlip$CANCER / scotlip$CEXP
 
 # review new SIR variable
-print(lmi[,c("CANCER","CEXP","SIR")])
+print(scotlip[,c("CANCER","CEXP","SIR")])
 
 # map SIRs
 ggplot() +
-  geom_sf(data = lmi, aes(fill = SIR)) +
+  geom_sf(data = scotlip, aes(fill = SIR)) +
   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
   theme_void()
 
@@ -126,11 +124,11 @@ library(spdep)
 # create nb object for scotland county polygons
 # 'queen = TRUE' tells R we want to use queen rather than rook contiguity. For rook, use 'queen = FALSE'
 #?poly2nb
-scot_nb <- poly2nb(lmi, queen = TRUE)
+scot_nb <- poly2nb(scotlip, queen = TRUE)
 
 # reviewing assigned neighbors
-plot(st_geometry(lmi), border = "grey")
-plot(scot_nb, st_geometry(lmi), add = TRUE)
+plot(st_geometry(scotlip), border = "grey")
+plot(scot_nb, st_geometry(scotlip), add = TRUE)
 
 ```
 
@@ -148,12 +146,12 @@ nb_b_1_2 <- nblag(scot_nb, maxlag = 2)
 nb_b_1_2c <- nblag_cumul(nb_b_1_2)
 
 # first order contiguity neighbors only
-plot(st_geometry(lmi), border = "grey")
-plot(scot_nb, st_geometry(lmi), add = TRUE)
+plot(st_geometry(scotlip), border = "grey")
+plot(scot_nb, st_geometry(scotlip), add = TRUE)
 
 # first and second order contiguity neighbors
-plot(st_geometry(lmi), border = "grey")
-plot(nb_b_1_2c, st_geometry(lmi), add = TRUE)
+plot(st_geometry(scotlip), border = "grey")
+plot(nb_b_1_2c, st_geometry(scotlip), add = TRUE)
 ```
 
 ### 2.1.2 Distance-based
@@ -164,7 +162,7 @@ Contiguity neighbors are simple to create and understand but always best for reg
 
 ```{r}
 # use centroids rather than polygons for knn
-centroids <- st_centroid(lmi)
+centroids <- st_centroid(scotlip)
 
 # create neighbor file for nearest 5 neighbors
 #?knearneigh
@@ -172,8 +170,8 @@ centroids <- st_centroid(lmi)
 nb_5 <- knn2nb(knearneigh(centroids, k  = 5))
 
 # reviewing knn = 5 neighbors
-plot(st_geometry(lmi), border = "grey")
-plot(nb_5, st_geometry(lmi), add = TRUE)
+plot(st_geometry(scotlip), border = "grey")
+plot(nb_5, st_geometry(scotlip), add = TRUE)
 
 ```
 
@@ -198,8 +196,8 @@ max_dist
 nb_d <- dnearneigh(centroids, d1 = 0, d2 = max_dist)
 
 # reviewing knn neighbors up to 10km away
-plot(st_geometry(lmi), border = "grey")
-plot(nb_d, st_geometry(lmi), add = TRUE)
+plot(st_geometry(scotlip), border = "grey")
+plot(nb_d, st_geometry(scotlip), add = TRUE)
 
 ```
 
@@ -293,7 +291,7 @@ Recall, a global Moran's I test assesses if there is any clustering in the study
 # use our first order contiguity binary spatial weights file
 # moran.test arguments <- x = numeric vector of cancer cases, listw = spatial weights in list format, 'alternative = greater' means we set a one-sided hypothesis that clustering is present, 'zero.policy = TRUE' accounts for islands
 #?moran.test
-gmi <- moran.test(x = lmi$CANCER, listw = nbwt_b_lst, alternative = "greater", zero.policy = TRUE)
+gmi <- moran.test(x = scotlip$CANCER, listw = nbwt_b_lst, alternative = "greater", zero.policy = TRUE)
 gmi
 ```
 
@@ -343,228 +341,169 @@ ggplot() +
   theme_void()
 ```
 
-`Ii`: Local Moran's I� statistic for each area,
-
-`E.Ii`: Expectation Local Moran's I� statistic,
-
-`Var.Ii`: Variance Local Moran's I� statistic,
-
-`Z.Ii`: z-score,
-
-`Pr(z > E(Ii))`, `Pr(z < E(Ii))` or `Pr(z != E(Ii))`: p-value for an alternative hypothesis `greater`, `less` or `two.sided`, respectively."
-
-```         
-lmoran <- localmoran(map$vble, nbw, alternative = "greater")
-head(lmoran)
-
-tm_shape(map) + tm_fill(col = "quadrant", title = "",
-breaks = c(1, 2, 3, 4, 5, 6),
-palette =  c("red", "blue", "lightpink", "skyblue2", "white"),
-labels = c("High-High", "Low-Low", "High-Low",
-           "Low-High", "Non-significant")) +
-tm_legend(text.size = 1)  + tm_borders(alpha = 0.5) +
-tm_layout(frame = FALSE,  title = "Clusters")  +
-tm_layout(legend.outside = TRUE)
-```
-
--   <https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
+Review each figure. What are your individual interpretations of the local clustering of lip cancer, uncertainty, and significance? Considering these results, what are your overall thoughts on local clusters of lip cancer?
 
 # 4. Spatial regression
 
-## 4.1 Geographically weighted regression (GWR)
+We have explored the data, tested for clustering, and know that accounting for spatial dependence is necessary for regression modeling. Let's explore a traditional Poisson regression and Bayesian spatial regression modeling via INLA.
 
-## 4.2 Integrated nested laplace approximation (INLA)
+First, start with a regression model that does not account for spatial dependence.
 
-INLA
+## 4.1 Aspatial Poisson regression model
 
-What data? Scottish lip cancer?
+We run poisson regressions from the generalized linear model function, glm(), which does not require loading an R package.
 
-```         
-install.packages("INLA",
-repos = "https://inla.r-inla-download.org/R/stable", dep = TRUE)
-library(INLA)
+NOTE: In R, a typical regression formula has the following structure: y \~ x1 + x2..
+
+```{r}
+# run the aspatial poisson regression model
+# use 'family = ' to specify the type of regression
+#?glm
+lip_pois <- glm(CANCER ~ AFF, family = "poisson", data = scotlip) 
+
+summary(lip_pois)
 ```
 
--   <https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
+The coefficient for AFF is 0.010 and a non-significant (p = 0.0958) predictor of lip cancer.
 
--   <https://r-spatial.org/book/16-SpatialRegression.html>
+```{r}
+exp(lip_pois$coefficients)
+```
 
-# 5. Your turn
+The overall relative risk is found by exponentiating the AFF coefficient, which comes to 1.01.
 
-## 5.1 Regression
+Take a look at these diagnostic plots of the residuals. What do you see? What are your thoughts about this model for estimating the risk of lip cancer in Scotland?
 
-## 5.2 Disease map
+```{r}
+res <- residuals(lip_pois, type="deviance")
+plot(log(predict(lip_pois)), res)
+abline(h=0, lty=2)
+qqnorm(res)
+qqline(res)
+```
+
+## 4.2 Integrated Nested Laplace Approximation (INLA)
+
+Now let's run the same regression using a Bayesian model that takes into account the spatial distribution of the data. INLA approximates the posterior distribution as opposed to hard calculating thousands of samples through Markov chain Monte Carlo methods. For this reason, INLA is far more time and computationally efficient for estimating spatial relationships.
+
+```{r}
+# install.packages("INLA", repos = "https://inla.r-inla-download.org/R/stable", dep = TRUE)
+library(INLA)
+
+# create a neighbor matrix to the format required for INLA
+nb2INLA("scotlip.adj", scot_nb)
+scot_nb_inla <- inla.read.graph(filename = "scotlip.adj")
+
+# creating two id variables for the spatially structured and unstructured random effects
+scotlip$id_u <- 1:nrow(scotlip)
+scotlip$id_v <- 1:nrow(scotlip)
+
+# specify and run the bayesian poisson regression model through inla 
+inla_aff <- inla(
+  formula = 
+    # fixed effects
+    CANCER ~ AFF +
+    # structured random effect - besag-york-mollie conditional autoregressive priors
+    f(id_u, model = "besag", graph = scot_nb_inla) +
+    # unstructured random effect
+    f(id_v, model = "iid"),
+  
+  # data distribution
+  family = "poisson",
+  
+  # reference data
+  data = scotlip,
+  
+  # expected # of cases
+  E = CEXP,
+  
+  # output values with fit statistics and local values
+  control.predictor = list(compute = TRUE)
+)
+
+summary(inla_aff)
+
+exp(0.043)
+```
+
+The coefficient for AFF is 0.043 with a 95% confidence interval of 0.016 to 0.067. Thus, there is a positive, statistically significant relationship between AFF and lip cancer at the county-level in Scotland after adjusting for spatial attributes of the data. Every one-unit increase in the % of the county population in AFF industry is associated with a 0.043 increase in observed cancer cases. The exponentiated coefficient equals an overall relative risk of 1.04.
+
+To get the local relative risk and 95% confidence interval for lip cancer, we can pull the summary fitted values from the model.
+
+```{r}
+# fitted (predicted) values for each county = relative risk
+# mean = relative risk
+print(inla_aff$summary.fitted.values)
+
+# add the relative risk to the original data
+scotlip$rr_aff <- inla_aff$summary.fitted.values$mean
+
+# map relative risk
+ggplot() +
+  geom_sf(data = scotlip, aes(fill = rr_aff, color = rr_aff)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
+  labs(caption = "Relative Risk of Lip Cancer at the County-level in Scotland, 1975-1980", 
+       fill = "Relative Risk") +
+  guides(color = "none") +
+  theme(
+    panel.background = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    plot.caption = element_text(size = 12, hjust = 0.5),
+    legend.position = "bottom"
+  )
+
+```
+
+Compare the map of SIRs, local clustering, and relative risks.
+
+```{r}
+
+# map SIRs
+ggplot() +
+  geom_sf(data = scotlip, aes(fill = SIR)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
+  theme_void()
+
+# visualize local clustering using the local Moran's I statistic
+ggplot() +
+  geom_sf(data = scotlip_lmi, aes(fill = i)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
+  theme_void()
+
+# map relative risk
+ggplot() +
+  geom_sf(data = scotlip, aes(fill = rr_aff, color = rr_aff)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
+  labs(caption = "Relative Risk of Lip Cancer at the County-level in Scotland, 1975-1980", 
+       fill = "Relative Risk") +
+  guides(color = "none") +
+  theme(
+    panel.background = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    plot.caption = element_text(size = 12, hjust = 0.5),
+    legend.position = "bottom"
+  )
+
+```
+
+What is your final interpretation of the model findings and the relationship between lip cancer and AFF in Scotland?
 
 # End
 
-```{r}
-library(CARBayesdata)
-data()
-
-data(lipdata)
-
-library(sf)
-library(spatstat.data)
-library(gstat)
-
-library(spatstat)
-
-lmi <- st_read("https://geodacenter.github.io/data-and-lab/data/lmi.zip")
-
-
-data(chicago)
-#https://search.r-project.org/CRAN/refmans/spatstat.data/html/chicago.html
-
-data(chicago)
-  if(require(spatstat.linnet)) {
-plot(chicago)
-#plot(as.linnet(chicago), main="Chicago Street Crimes",col="green")
-plot(as.ppp(chicago), add=TRUE, col="red", chars=c(16,2,22,17,24,15,6))
-  }
-
-library(maptools)
-
-chi_pp <- as.SpatialPointsDataFrame.ppp(as.ppp(chicago))
-
-chi_pp2 <- st_as_sf(as.ppp(chicago))
-
-chi_pp3 <- st_as_sf(chicago)
-
-class(chicago)
-
-ggplot(chi_pp3 %>% filter(label != "segment")) + 
-  geom_sf()
-
-view(as.ppp(chicago))
-
-st_coordinates(chi_pp)
-
-view((chicago[["data"]]))
-
-data(nbfires)
-
-#https://hughst.github.io/week-1/
-#https://malariaatlas.org/
-
-
-```
-
-\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
-
-1.  
-
-2.  Importing and downloading data
-
-    1.  <https://mgimond.github.io/Spatial/reading-and-writing-spatial-data-in-r.html>
-
-    2.  <https://www.paulamoraga.com/book-spatial/the-sf-package-for-spatial-vector-data.html>
-
-        1.  CSV
-
-        2.  Shapefiles
-
-        3.  Census
-
-3.  Writing data
-
-    1.  CSV
-
-    2.  Shapefiles
-
-4.  Basic data processing
-
-    1.  Sf and Raster package features
-
-    2.  Create new shapefile
-
-        1.  Filter?
-
-    3.  Coordinate systems
-
-        1.  Setting, checking, comparing
-
-    4.  ...
-
-5.  Make a map
-
-    1.  tmap
-
-    2.  ggplot
-
-        1.  Inset?
-
-        2.  Arrow/Scale bar
-
-        3.  Theme
-
-        4.  Color scales
-
-    3.  Leaflet
-
-    4.  <https://mgimond.github.io/Spatial/mapping-rates-in-r.html>
-
-    5.  <https://mgimond.github.io/Spatial/mapping-data-in-r.html>
-
-6.  Descriptive statistics
-
-    1.  Aspatial
-
-    2.  Spatial
-
-        1.  Intersection to count overlapping points
-
-7.  Point pattern analysis
-
-    1.  <https://mgimond.github.io/Spatial/point-pattern-analysis-in-r.html>
-
-        1.  Kernel density
-
-        2.  G-function
-
-8.  Spatial autocorrelation
-
-    1.  <https://mgimond.github.io/Spatial/spatial-autocorrelation-in-r.html>
-
-        1.  Local Moran's I
-
-            1.  Map
-
-9.  Creating a spatial weights matrix
-
-10. INLA
-
-11. Final map
-
 # References
 
-Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J, Robinson D, Seidel DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). "Welcome to the tidyverse." *Journal of Open Source Software*, **4**(43), 1686. [doi:10.21105/joss.01686](https://doi.org/10.21105/joss.01686).
+Blangiardo M, Cameletti M, Baio G, Rue H. Spatial and spatio-temporal models with R-INLA. Spat Spatiotemporal Epidemiol. 2013 Dec;7:39-55. doi: 10.1016/j.sste.2013.07.003. PMID: 24377114.
 
-Edzer Pebesma, 2018. Simple Features for R: Standardized Support for Spatial Vector Data. The R Journal [10:1, 439-446.](https://journal.r-project.org/archive/2018/RJ-2018-009/index.html)
+<https://bookdown.org/roback/bookdown-BeyondMLR/>
 
-Cressie, N (1991), *Statistics for spatial data*. New York: Wiley, pp. 386\--389; Cressie, N, Chan NH (1989) Spatial modelling of regional variables. *Journal of the American Statistical Association*, 84, 393\--401; Cressie, N, Read, TRC (1985) Do sudden infant deaths come in clusters? *Statistics and Decisions* Supplement Issue 2, 333\--349; <http://sal.agecon.uiuc.edu/datasets/sids.zip.>
+<https://www.paulamoraga.com/book-geospatial/index.html>
 
-<https://www.paulamoraga.com/book-spatial/disease-risk-modeling.html>
+<https://www.paulamoraga.com/book-spatial/index.html>
 
-<https://r-spatial.org/book/16-SpatialRegression.html>
-
-<https://www.paulamoraga.com/book-spatial/spatial-autocorrelation.html>
-
-<https://www.paulamoraga.com/book-spatial/spatial-neighborhood-matrices.html>
-
-<https://www.paulamoraga.com/book-spatial/the-k-function.html>
-
-<https://arc2r.github.io/book/Density.html#kernel-density>
-
-<https://r-spatial.org/book/11-PointPattern.html>
-
-<https://r-spatial.org/book/11-PointPattern.html#marked-point-patterns-points-on-linear-networks>
-
-<https://www.paulamoraga.com/book-geospatial/sec-spatialdataandCRS.html>
-
-<https://arc2r.github.io/book/Static_Maps.html>
-
-<https://ggplot2-book.org/>
-
-# 
+<https://r-spatial.org/book/>
 
 # 
