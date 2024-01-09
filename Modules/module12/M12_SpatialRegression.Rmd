@@ -28,15 +28,15 @@ library(sf)
 # the following code reads in the zip file from github with the scottish lip cancer shapefile
 t1 <- tempfile()
 t2 <- tempfile()
-scotlip <- download.file("https://raw.githubusercontent.com/Rsnead91/EPBI_5003/main/Modules/module12/scotlip.zip",t1)
+lmi <- download.file("https://raw.githubusercontent.com/Rsnead91/EPBI_5003/main/Modules/module12/lmi.zip",t1)
 unzip(zipfile = t1, exdir = t2)
-scotlip <- st_read(t2)
+lmi <- st_read(t2)
 
 # review the data types
-str(scotlip)
+str(lmi)
 
 # review the raw data
-head(scotlip)
+head(lmi)
 ```
 
 The variables included in the data are:
@@ -60,30 +60,30 @@ First we'll run a ggplot to make sure the projection looks right. Then, we will 
 ```{r}
 # take a look at the study area
 # the crs code is set to ESPG 27700, the projection for OSGB 1936/British National Grid, which is commonly used for the UK
-# you could find the crs by simply running: st_crs(scotlip)
+# you could find the crs by simply running: st_crs(lmi)
 ggplot() +
-  geom_sf(data = scotlip)
+  geom_sf(data = lmi)
 
 # using the summary function to return descriptive statistics on the subset numeric data
-summary(scotlip[,c("POP","CANCER","CEXP","AFF")])
+summary(lmi[,c("POP","CANCER","CEXP","AFF")])
 
 # mapping variables of interest
 
 # population
 ggplot() +
-  geom_sf(data = scotlip, aes(fill = POP))
+  geom_sf(data = lmi, aes(fill = POP))
 
 # observed cancer cases
 ggplot() +
-  geom_sf(data = scotlip, aes(fill = CANCER))
+  geom_sf(data = lmi, aes(fill = CANCER))
 
 # expected cancer cases
 ggplot() +
-  geom_sf(data = scotlip, aes(fill = CEXP))
+  geom_sf(data = lmi, aes(fill = CEXP))
 
 # proportion of county in an outdoor industry
 ggplot() +
-  geom_sf(data = scotlip, aes(fill = AFF))
+  geom_sf(data = lmi, aes(fill = AFF))
 
 ```
 
@@ -93,14 +93,14 @@ Now let's calculate the SIR and map the results.
 
 ```{r}
 # create a new variable for SIR by dividing the observed by expected # of cases
-scotlip$SIR <- scotlip$CANCER / scotlip$CEXP
+lmi$SIR <- lmi$CANCER / lmi$CEXP
 
 # review new SIR variable
-print(scotlip[,c("CANCER","CEXP","SIR")])
+print(lmi[,c("CANCER","CEXP","SIR")])
 
 # map SIRs
 ggplot() +
-  geom_sf(data = scotlip, aes(fill = SIR)) +
+  geom_sf(data = lmi, aes(fill = SIR)) +
   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
   theme_void()
 
@@ -111,13 +111,13 @@ What are your thoughts about the patterns of the SIR for lip cancer? How do they
 
 # 2. Spatial weights matrices
 
-In order to start performing tests and running regressions, we need to set up our spatial weights matrix, or neighborhood matrix.
+In order to start performing tests and running regressions, we need to set up our spatial weights matrix, or neighborhood matrix. The objects and functions used for identifying neighbors and creating weights are mainly from the [**spdep**](https://r-spatial.github.io/spdep/index.html) package. Depending on the spatial analysis and packages you are using, you may need your neighbor files or weights matrix in various object types, such as nb, list, or matrix. The first step to creating a spatial weight's matrix is to identify neighboring polygons.
 
-The objects and functions used for identifying neighbors and creating weights are mainly from the [**spdep**](https://r-spatial.github.io/spdep/index.html) package. Depending on the spatial analysis and packages you are using, you may need your neighbor files or weights matrix in various object types, such as nb, list, or matrix.
+## 2.1 Neighbors
 
-## 2.1 Contiguity
+### 2.1.1 Contiguity
 
-To create a create a queen or rook contiguity neighbors file we can use `poly2nb()`, which takes out shapefile of polygons and identifies bordering neighbors. Weights are assigned as 1 for neighboring polygons and 0 for non-neighboring polygons.
+To create a create a queen or rook contiguity neighbors file we can use `poly2nb()`, which takes our shapefile of polygons and identifies bordering neighbors.
 
 ```{r}
 #install.packages("spdep)
@@ -126,25 +126,45 @@ library(spdep)
 # create nb object for scotland county polygons
 # 'queen = TRUE' tells R we want to use queen rather than rook contiguity. For rook, use 'queen = FALSE'
 #?poly2nb
-scot_nb <- poly2nb(scotlip, queen = TRUE)
+scot_nb <- poly2nb(lmi, queen = TRUE)
 
 # reviewing assigned neighbors
-plot(st_geometry(scotlip), border = "grey")
-plot(scot_nb, st_geometry(scotlip), add = TRUE)
+plot(st_geometry(lmi), border = "grey")
+plot(scot_nb, st_geometry(lmi), add = TRUE)
 
 ```
 
 Each line connecting from one circle to another represents a neighbor connection. Notice the islands are not connected and the northern counties don't have many neighbors. How do you think that might effect regression estimates?
 
-## 2.2 Distance-based
+The neighbors file we just created was a first order contiguity. To create a second order contiguity neighbors file, we'll use `nblag()` to create a first and second order list of neighbors. We can then combine those two files with `nblag_cumul()`.
 
-Contiguity neighbors and binary weights are simple to create but are not usually as accurate for regression analyses. Alternatively, we can calcuate distance-based weights, such as k-nearest-neighbors (knn) and inverse distance weighting.
+```{r}
+# create a first and second order neighbors file by setting 'maxlag' to 2
+#?nblag
+nb_b_1_2 <- nblag(scot_nb, maxlag = 2) 
+
+# combining first and second order neighbors
+#?nblag_cumul
+nb_b_1_2c <- nblag_cumul(nb_b_1_2)
+
+# first order contiguity neighbors only
+plot(st_geometry(lmi), border = "grey")
+plot(scot_nb, st_geometry(lmi), add = TRUE)
+
+# first and second order contiguity neighbors
+plot(st_geometry(lmi), border = "grey")
+plot(nb_b_1_2c, st_geometry(lmi), add = TRUE)
+```
+
+### 2.1.2 Distance-based
+
+Contiguity neighbors are simple to create and understand but always best for regression analyses. Alternatively, we can use distance-based methods to identify neighbors, such as k-nearest-neighbors (knn).
 
 **knn based on the number of nearest neighbors:**
 
 ```{r}
 # use centroids rather than polygons for knn
-centroids <- st_centroid(scotlip)
+centroids <- st_centroid(lmi)
 
 # create neighbor file for nearest 5 neighbors
 #?knearneigh
@@ -152,8 +172,8 @@ centroids <- st_centroid(scotlip)
 nb_5 <- knn2nb(knearneigh(centroids, k  = 5))
 
 # reviewing knn = 5 neighbors
-plot(st_geometry(scotlip), border = "grey")
-plot(nb_5, st_geometry(scotlip), add = TRUE)
+plot(st_geometry(lmi), border = "grey")
+plot(nb_5, st_geometry(lmi), add = TRUE)
 
 ```
 
@@ -178,85 +198,160 @@ max_dist
 nb_d <- dnearneigh(centroids, d1 = 0, d2 = max_dist)
 
 # reviewing knn neighbors up to 10km away
-plot(st_geometry(scotlip), border = "grey")
-plot(nb_d, st_geometry(scotlip), add = TRUE)
+plot(st_geometry(lmi), border = "grey")
+plot(nb_d, st_geometry(lmi), add = TRUE)
 
 ```
 
-How do you compare the contiguity and knn neighbors? Which do you think is more appropriate for our data?
+How do you compare the results from the contiguity and knn neighbors? Which do you think is more appropriate for our data?
+
+## 2.2 Weights
+
+The second step in creating a weights matrix is to assign weights to neighbors and convert the `nb` object to a list or matrix.
+
+**Binary:**
+
+In it's most basic form, a binary weights matrix assigns neighbors a weight of 1 and non-neighbors a weight of 0. Additional weighting "styles", or schemes, are row standardized, globally standardized, or the globally standardized / the number of neighbors.
+
+```{r}
+# creating spatial weights by assigning basic binary coding based on the contiguity neighbors file
+# style = "B" -> 1 = neighhbor, 0 = non-neighbor
+# spatial weights in a 'list'
+# 'zero.policy = TRUE' allows for 'islands' which are polygons with no neighbors
+#?nb2listw
+nbwt_b_lst <- nb2listw(scot_nb, style = "B", zero.policy = TRUE)
+
+# elements in the list
+# coding style
+nbwt_b_lst$style
+
+# shows the neighbors, by row number, for the first polygon
+nbwt_b_lst$neighbours[1]
+
+# shows the weights for the first polygon
+nbwt_b_lst$weights[1]
+  
+# spatial weights in a matrix
+#?listw2mat
+nbwt_b_mat <- listw2mat(nbwt_b_lst)
+
+# weight matrix among the first ten polygons
+nbwt_b_mat[1:10, 1:10]
+
+```
 
 **Inverse Distance Weighting:**
 
+Inverse distance weighting performs better for spatial regression analyses than binary weighting schemes. From our contiguity neighbors file, we can use `nbdists()` to calculate the inverse distance weights. We will use the first and second order neighbors to calculate the final weights matrix.
+
 ```{r}
+# calculating the distance from polygon centroid to neighboring centroids
+dist <- nbdists(nb_b_1_2c, centroids)
 
-```
+# distance to each neighbor for the first 3 polygons
+dist[1:3]
 
-IDW?
+# calculate the inverse distance (1/distance) for all neighbors of every polygon
+# lapply() takes our function (1/x) and applies it to every value in 'dist' list
+#?lapply
+dist_idw <- lapply(dist, function(x){1/x})
 
-8.3 Neighbor weights matrix
+# inverse distance to each neighbor for the first 3 polygons
+dist_idw[1:3]
 
-```         
+# creating weights matrix as a 'list'
+# 'glist' is used to assign the inverse distance weights to the correct neighbors
+nbwt_idw_lst <- nb2listw(nb_b_1_2c, glist = dist_idw, style = "B", zero.policy = TRUE)
 
-# binary
-nb <- poly2nb(map, queen = TRUE)
-nbw <- spdep::nb2listw(nb, style = "W")
-nbw$weights[1:3]
+# elements in the list
+# coding style
+nbwt_idw_lst$style
 
-m1 <- listw2mat(nbw)
-lattice::levelplot(t(m1),
-scales = list(y = list(at = c(10, 20, 30, 40),
-                       labels = c(10 20, 30, 40))))
+# shows the neighbors, by row number, for the first polygon
+nbwt_idw_lst$neighbours[1]
 
-# idw
-coo <- st_centroid(map)
-nb <- poly2nb(map, queen = TRUE)
-dists <- nbdists(nb, coo)
-ids <- lapply(dists, function(x){1/x})
+# shows the weights for the first polygon
+nbwt_idw_lst$weights[1]
 
-nbw <- nb2listw(nb, glist = ids, style = "B")
-nbw$weights[1:3]
+# spatial weights in a matrix
+nbwt_idw_mat <- listw2mat(nbwt_idw_lst)
 
-m2 <- listw2mat(nbw)
-lattice::levelplot(t(m2),
-scales = list(y = list(at = c(10, 20, 30, 40),
-                       labels = c(10, 20, 30, 40))))
+# weight matrix among the first ten polygons
+nbwt_idw_mat[1:10, 1:10]
+
 ```
 
 # 3. Spatial autocorrelation
 
-Moran's I
+To test for spatial autocorrelation, we'll use the spdep package to perform a global Moran's I test with `moran.test()` and a local Moran's I test with `localmoran()`.
 
 ## 3.1 Global
 
-```         
-# Neighbors
-library(spdep)
-nb <- poly2nb(map, queen = TRUE) # queen shares point or border
-nbw <- nb2listw(nb, style = "W")
+Recall, a global Moran's I test assesses if there is any clustering in the study area.
 
-# Global Moran's I
-gmoran <- moran.test(map$vble, nbw,
-                     alternative = "greater")
-gmoran
-
-gmoran[["estimate"]][["Moran I statistic"]] # Moran's I
-gmoran[["statistic"]] # z-score
-gmoran[["p.value"]] # p-value
+```{r}
+# use our first order contiguity binary spatial weights file
+# moran.test arguments <- x = numeric vector of cancer cases, listw = spatial weights in list format, 'alternative = greater' means we set a one-sided hypothesis that clustering is present, 'zero.policy = TRUE' accounts for islands
+#?moran.test
+gmi <- moran.test(x = lmi$CANCER, listw = nbwt_b_lst, alternative = "greater", zero.policy = TRUE)
+gmi
 ```
+
+The global Moran's I is 0.138, which is above 0 and indicating clustering. The p-value is less than 0.05 at 0.03. Thus, there is statistically significant clustering of lip cancer cases in Scotland. Although, the test statistic is admittedly small. What are the reasons why we might have a smaller test statistic?
 
 ## 3.2 Local
 
-\- give a sense of what to expect?
+Because we know there is indeed global clustering, spatial regression rather than ordinary regression is necessary. However, running a local Moran's I will give us a idea of what we might expect to find from our spatial regression model. When we run localmoran(), instead of single overall parameters for the entire study areas, we will have test statistics, z-scores, and p-values for each county in the study.
 
--   `Ii`: Local Moran's I� statistic for each area,
+```{r}
+# the structure of the local moran's I function is the same as the global
+lmi <- localmoran(x = scotlip$CANCER, listw = nbwt_b_lst, alternative = "greater", zero.policy = TRUE)
 
--   `E.Ii`: Expectation Local Moran's I� statistic,
+# NOTE: Row 6 is an island which is why it has all 0's and NaNs.
+# Ii = Local Moran's I� statistic for each area
+# E.Ii = Expectation Local Moran's I� statistic
+# Var.Ii = Variance Local Moran's I� statistic
+# Z.Ii = z-score
+# Pr(z < E(Ii)) = p-value
+head(lmi)
 
--   `Var.Ii`: Variance Local Moran's I� statistic,
+# changing column names for easier referencing
+colnames(lmi) <- c('i', "e", "v", "z", "p")
 
--   `Z.Ii`: z-score,
+# converting to data frame and combining with shapefile
+scotlip_lmi <- cbind(scotlip, as.data.frame(lmi))
 
--   `Pr(z > E(Ii))`, `Pr(z < E(Ii))` or `Pr(z != E(Ii))`: p-value for an alternative hypothesis `greater`, `less` or `two.sided`, respectively."
+# creating a binary p-value variable for above and below p = 0.05
+scotlip_lmi$p_bin <- ifelse(scotlip_lmi$p < 0.05, 1, 0)
+
+# visualize local clustering using the local Moran's I statistic
+ggplot() +
+  geom_sf(data = scotlip_lmi, aes(fill = i)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 1) +
+  theme_void()
+
+# visualize the uncertainty of the local clustering using the variance
+ggplot() +
+  geom_sf(data = scotlip_lmi, aes(fill = v)) +
+  scale_fill_gradient(low = "white", high = "orange") +
+  theme_void()
+
+# visualize statistical significance of local clustering using the p-value
+ggplot() +
+  geom_sf(data = scotlip_lmi, aes(fill = factor(p_bin))) +
+  scale_fill_manual(values = c("white","black"), labels = c("Non-sig", "Sig", "NA")) +
+  theme_void()
+```
+
+`Ii`: Local Moran's I� statistic for each area,
+
+`E.Ii`: Expectation Local Moran's I� statistic,
+
+`Var.Ii`: Variance Local Moran's I� statistic,
+
+`Z.Ii`: z-score,
+
+`Pr(z > E(Ii))`, `Pr(z < E(Ii))` or `Pr(z != E(Ii))`: p-value for an alternative hypothesis `greater`, `less` or `two.sided`, respectively."
 
 ```         
 lmoran <- localmoran(map$vble, nbw, alternative = "greater")
@@ -314,7 +409,7 @@ library(gstat)
 
 library(spatstat)
 
-scotlip <- st_read("https://geodacenter.github.io/data-and-lab/data/scotlip.zip")
+lmi <- st_read("https://geodacenter.github.io/data-and-lab/data/lmi.zip")
 
 
 data(chicago)
