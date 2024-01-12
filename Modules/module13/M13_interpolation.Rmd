@@ -1,0 +1,85 @@
+---
+title: "M13"
+author: "Ryan Snead"
+date: "2024-01-12"
+output: pdf_document
+---
+
+```{r}
+
+# load all the packages we'll be using
+# use instal.packages("") if you have not already installed any of these
+library(sf)
+library(tigris)
+library(tidyverse)
+library(spatstat)
+library(gstat)
+library(raster)
+library(terra)
+library(sp)
+
+# generate the county border for philadelphia
+philly <- counties(state = "PA", cb = TRUE) %>% filter(COUNTYFP == 101)
+
+# randomly generated point locations for hypothetical observed data (e.g., air pollution samples)
+# NOTE: every person's map will look a little different
+# setting the seed allows you to reproduce your data
+set.seed(1)
+
+# kappa is the cluster instensity value relative to the area of interest
+kappa <- 100 / st_area(philly)
+
+# st_sample lets you randomly generate points within a given object (i.e., the philly borders)
+#?st_sample
+sim_clusters <- data.frame(st_sample(philly, kappa = kappa, mu = 3, scale = 0.05, size = 50, type = "random"))
+
+# take a look at your random points
+plot(st_geometry(philly))
+plot(sim_clusters, add = TRUE)
+
+# we have the sample locations but this code creates the value we will interpolate in unknown locations
+sim <- cbind(data.frame(rand = runif(50)),sim_clusters)
+
+# since we want to output continuous values of our interpolated variable across space, we need to create a raster for the study area (i.e., philly)
+#?rast
+#?rasterize
+#?vect
+philly_rast <- rasterize(vect(philly), rast(vect(philly), res = 0.005))
+
+# take a look at the raster
+# should all be contained within the philly county borders
+plot(st_geometry(philly))
+plot(philly_rast, add = TRUE)
+
+# perform the inverse distance weighting calculation
+# need to create variables for longitude and latitude
+sim$x <- st_coordinates(st_as_sf(sim))[,1]
+sim$y <- st_coordinates(st_as_sf(sim))[,2]
+
+# creating a gstat object to perform the calculation
+#?gstat
+# formula just uses an intercept to predict our variable
+# set locations over our 'rabd' values to their longitude and latitude
+gs <- gstat(formula=rand~1, locations =~x+y, data=sim)
+
+# this performs the actual IDW calculation
+idw <- interpolate(rast(vect(philly), res = 0.005), gs, debug.level=0)
+
+# attaching the IDW output results to the raster we created for philly 
+idwr <- mask(idw, philly_rast)
+
+# view our results
+plot(idwr, 1)
+
+# calculate the RMSE
+```
+
+## 
+
+```{r}
+
+
+
+
+
+```

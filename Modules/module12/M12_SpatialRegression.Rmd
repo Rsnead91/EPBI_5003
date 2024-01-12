@@ -1,7 +1,7 @@
 ---
 title: "M12 - Spatial Regression"
-instructor: ""
-course: "EPBI 5003"
+instructor: ''
+course: EPBI 5003
 ---
 
 # Module outline
@@ -129,6 +129,14 @@ scot_nb <- poly2nb(scotlip, queen = TRUE)
 # reviewing assigned neighbors
 plot(st_geometry(scotlip), border = "grey")
 plot(scot_nb, st_geometry(scotlip), add = TRUE)
+
+
+nc_sids <- st_read(system.file("shape/nc.shp", package = "sf"))
+
+nc_nb <- poly2nb(nc_sids, queen = TRUE)
+
+plot(st_geometry(nc_sids), border = "grey")
+plot(nc_nb, st_geometry(nc_sids), add = TRUE)
 
 ```
 
