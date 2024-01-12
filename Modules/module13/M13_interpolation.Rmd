@@ -5,6 +5,8 @@ date: "2024-01-12"
 output: pdf_document
 ---
 
+# Calculate Inverse Distance Weighted Interpolation!
+
 ```{r}
 
 # load all the packages we'll be using
@@ -71,7 +73,43 @@ idwr <- mask(idw, philly_rast)
 # view our results
 plot(idwr, 1)
 
+# now let's see how we did
+
 # calculate the RMSE
+
+# create an empty vector for 50 values
+rmse <- rep(NA, 50)
+
+# create a row number variable in the sim data
+sim$rownum <- 1:nrow(sim)
+
+# this is a function to calculate RMSE
+RMSE <- function(observed, predicted) {
+  sqrt(mean((predicted - observed)^2, na.rm=TRUE))
+}
+
+# loops through each row of the data
+# removes row, re-trains the data without that row, then tries to predict the row we removed
+# calculates RMSE for each iteration
+for (k in 1:50) {
+  test <- sim[sim$rownum == k, ]
+  train <- sim[sim$rownum != k, ]
+  gs <- gstat(formula=rand~1, locations=~x+y, data=train)
+  p <- predict(gs, test, debug.level=0)
+  rmse[k] <- RMSE(test$rand, p$var1.pred)
+}
+rmse
+
+# our final RMSE is the average of our vector
+mean(rmse)
+
+# the null model for interpolating values would be to just take the mean of all samples
+# calculating the RMSE of the null model to compare with IDW
+null <- RMSE(mean(sim$rand), sim$rand)
+
+## 1 - the IDW RMSE over the null RMSE gives us the relative performance
+1 - (mean(rmse) / null)
+
 ```
 
 ## 
@@ -83,3 +121,118 @@ plot(idwr, 1)
 
 
 ```
+
+We will generate "random" but clustered points within Philadelphia for practice.
+
+```{r}
+# generate the county border for philadelphia
+philly <- counties(state = "PA", cb = TRUE) %>% filter(COUNTYFP == 101)
+
+# randomly generated point locations for hypothetical observed data (e.g., air pollution samples)
+# NOTE: every person's map will look a little different
+# setting the seed allows you to reproduce your data
+set.seed(1)
+
+# kappa is the cluster instensity value relative to the area of interest
+kappa <- 100 / st_area(philly)
+
+# st_sample lets you randomly generate points within a given object (i.e., the philly borders)
+#?st_sample
+sim_clusters <- data.frame(st_sample(philly, kappa = kappa, mu = 3, scale = 0.05, size = 50, type = "random"))
+
+# take a look at your random points
+plot(st_geometry(philly))
+plot(sim_clusters, add = TRUE)
+
+# we have the sample locations but this code creates the value we will interpolate in unknown locations
+sim <- cbind(data.frame(rand = runif(50)),sim_clusters)
+
+```
+
+Create a raster to interpolate point values onto. We are not telling R the locations where we want data to be interpolated, but instead interpolating a continuous field across Philadelphia based on our data.
+
+```{r}
+# since we want to output continuous values of our interpolated variable across space, we need to create a raster for the study area (i.e., philly)
+#?rast
+#?rasterize
+#?vect
+philly_rast <- rasterize(vect(philly), rast(vect(philly), res = 0.005))
+
+# take a look at the raster
+# should all be contained within the philly county borders
+plot(st_geometry(philly))
+plot(philly_rast, add = TRUE)
+```
+
+Once we have out point data and raster, we can perform our IDW calculation.
+
+```{r}
+# perform the inverse distance weighting calculation
+# need to create variables for longitude and latitude
+sim$x <- st_coordinates(st_as_sf(sim))[,1]
+sim$y <- st_coordinates(st_as_sf(sim))[,2]
+
+# creating a gstat object to perform the calculation
+#?gstat
+# formula just uses an intercept to predict our variable
+# set locations over our 'rabd' values to their longitude and latitude
+gs <- gstat(formula=rand~1, locations =~x+y, data=sim)
+
+# this performs the actual IDW calculation
+idw <- interpolate(rast(vect(philly), res = 0.005), gs, debug.level=0)
+
+# attaching the IDW output results to the raster we created for philly 
+idwr <- mask(idw, philly_rast)
+
+# view our results
+plot(idwr, 1)
+```
+
+We interpolated our data, but how did it perform? Now is when you perform your quality checking.
+
+```{r}
+# now let's see how we did
+
+# calculate the RMSE
+
+# create an empty vector for 50 values
+rmse <- rep(NA, 50)
+
+# create a row number variable in the sim data
+sim$rownum <- 1:nrow(sim)
+
+# this is a function to calculate RMSE
+RMSE <- function(observed, predicted) {
+  sqrt(mean((predicted - observed)^2, na.rm=TRUE))
+}
+
+# loops through each row of the data
+# removes row, re-trains the data without that row, then tries to predict the row we removed
+# calculates RMSE for each iteration
+for (k in 1:50) {
+  test <- sim[sim$rownum == k, ]
+  train <- sim[sim$rownum != k, ]
+  gs <- gstat(formula=rand~1, locations=~x+y, data=train)
+  p <- predict(gs, test, debug.level=0)
+  rmse[k] <- RMSE(test$rand, p$var1.pred)
+}
+rmse
+
+# our final RMSE is the average of our vector
+mean(rmse)
+
+# the null model for interpolating values would be to just take the mean of all samples
+# calculating the RMSE of the null model to compare with IDW
+null <- RMSE(mean(sim$rand), sim$rand)
+
+## 1 - the IDW RMSE over the null RMSE gives us the relative performance
+1 - (mean(rmse) / null)
+```
+
+What does your data look like?
+
+How would you interpret the RMSE value for the interpolated data?
+
+How did your interpolation perform relative to the null model?
+
+How might you use this technique in your work or area of interest?
